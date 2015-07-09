@@ -2,8 +2,14 @@
 
 numDevices=$(($(adb devices | wc -l) - 2))
 
-crabHelp(){
-	echo "Crab Adb Version 0.1"
+crabHelp() {
+	# suppress adb help output and error
+	adb_help=$((adb help) 2>&1)
+	
+	# replace all instances of adb with crab
+	adb_help="${adb_help//adb/crab}"
+
+	echo "Crab Version 0.1 using $adb_help"
 }
 
 # output connected devices (ft. superinstall)
