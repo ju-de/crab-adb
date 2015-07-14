@@ -28,15 +28,15 @@ devices=$(adb devices)
 			deviceList="$deviceList \"${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}\""
 			
 		done
-					
-		echo $deviceList
 		
 		#Asks user to select device, and then prints out the device.
 		eval set $deviceList
 		select device in "$@"; 
 		do
 			#We need to return this value to the method that called it or save it to a global variable or something, but for now I just printed it
+			echo $device
 			echo $device | cut -f 5 -d " ";
+			echo $device | awk 'BEGIN {FS=" - "} {print $3}'
 			break
 		done;
 		}

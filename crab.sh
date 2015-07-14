@@ -1,20 +1,22 @@
 #!/bin/bash
 
 numDevices=$(($(adb devices | wc -l) - 2))
-textinput=""
+textInput=""
+selectedDeviceId=""
 
+# Shows the user how to use the script
 crabHelp() {
-	# suppress adb help output and error
-	adb_help=$((adb help) 2>&1)
+	# Suppresses adb help output and error
+	adb_help=`(adb help) 2>&1`
 
-	# replace all instances of adb with crab
+	# Replaces all instances of adb with crab
 	adb_help="${adb_help//adb/crab}"
 
 	echo "Crab Version 0.1 using $adb_help"
 }
 
 
-# output connected devices (ft. superinstall)
+# Outputs connected devices (modified part of superInstall)
 crabList() {
 	if [ "$numDevices" == "0" ]; then 
 		echo 'No devices detected! Please try again.'	
@@ -24,7 +26,7 @@ crabList() {
 		for ((i = 2; i <= (($numDevices) +1); i++))
 		do
 		(
-			# device_list=`adb devices` #parse through string of deviceIDs and authorization states
+			# device_list=`adb devices` # Parses through string of deviceIDs and authorization states
 			# echo $device_list
 
 			deviceID=$(adb devices | tail -n +$i | head -n1 | cut -f 1 | xargs -I X)
@@ -50,58 +52,73 @@ crabList() {
 	fi			
 }
 
-# prompts user to select a device if multiple are connected
+# Prompts user to select a device if multiple are connected
 crabSelect() {
 
-	#display devices
-	if [ "$numDevices" == "1" ]; then
-		echo "Only one device found:"
+	if [[ "$numDevices" == "0" ]]; then
+		{
+			echo "No devices detected"
+		}
+	elif [[ "$numDevices" == "1" ]]; then
+		{
+		selectedDeviceId=$(adb devices | cut -f 5 -d " ")
+		}	
 	else
+		{
+		# Modified part of superInstall
 		echo "Select a device using its number:"
+		for ((i = 2; i <= (($numDevices) +1); i++))
+		do
+			deviceID=$(adb devices | tail -n +$i | head -n1 | cut -f 1 | xargs -I X)
+			deviceMake=$(adb -s $deviceID shell getprop ro.product.manufacturer | tr -d '\r')
+			deviceName=$(adb -s $deviceID shell getprop ro.product.model | tr -d '\r')
+			deviceOS=$(adb -s $deviceID shell getprop ro.build.version.release | tr -d '\r')
+			
+			# Adds each device to the string		
+			deviceList="$deviceList \"${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}\""
+			
+		done
+		
+		# Asks user to select device, and then prints out the device.
+		eval set $deviceList
+		select device in "$@"; 
+		do
+			# Save the ID of the selected device as a global variable
+			selectedDeviceId=$(echo $device | awk 'BEGIN {FS=" - "} {print $3}')
+			# echo The ID of the selected device is: $selectedDeviceId
+			break
+		done;
+		}
 	fi
-
-	crabList
-
-	#take input
-
-	# DEVICES="Hello Quit"
-	# select device in $DEVICES; do
-	# 	if [ "$device" = "Quit" ]; then
-	# 		echo done
-	# 		exit
-	# 	elif [ "device" = "Hello" ]; then
-	# 		echo Hello World
-	# 	else
-	# 		clear
-	# 		echo "Device does not exist."
-	# 	fi
-	# done
-
 }
 
-# take a screenshot on connected devices (ft. superadb)
+# Takes a screenshot on connected devices (modified part of superadb)
 crabScreenshot() {
 	echo 'Taking Screenshot on all devices:'	
 	echo ''
 
 	# Figures out which devices are connected and what their serial number is
 	for SERIAL in $(adb devices | grep -v List | cut -f 1); do
-		# get the device info
+		# Gets the device info
 		deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
 		deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
-		# get the time stamp
+		# Gets the time stamp
 		timestamp=$(date +"%I-%M-%S")
 
-		#Credit to the following site for screenshot copying directly to the current directory
-		#http://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html
-		$ANDROID_HOME/platform-tools/adb -s $SERIAL shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' > $deviceMake-$timestamp-$screenshotname 
-		# tell the user which device the screenshot was taken on
+		# Credit to the following site for screenshot copying directly to the current directory
+		# http://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html
+
+		# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
+		# $ANDROID_HOME/platform-tools/adb -s $SERIAL shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' > $deviceMake-$timestamp-$screenshotname 
+		adb -s $SERIAL shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' > $deviceMake-$timestamp-$screenshotname 
+		
+		# Tells the user which device the screenshot was taken on
 		echo 'Took screenshot on: ' $deviceMake ' ' $deviceName ' @ ' $timestamp
 
 	done
 }
 
-# grab crash logs from connected devices (ft. superadb)
+# Grabs crash logs from connected devices (modified part of superadb)
 crabLog() {
 	echo 'Taking logs from all devices:'	
 	echo ''
@@ -113,50 +130,55 @@ crabLog() {
 
 		echo 'Logcat from' $deviceMake $deviceName '@' $timestamp
 		echo ''
-		$ANDROID_HOME/platform-tools/adb -s $SERIAL logcat -d | grep AndroidR
+		# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
+		# $ANDROID_HOME/platform-tools/adb -s $SERIAL logcat -d | grep AndroidR
+		adb -s $SERIAL logcat -d | grep AndroidR
 		echo ''
 
 	done
 }
 
-# inputs text on connected devices (ft. superadb)
+# Inputs text on connected devices (modified part of superadb)
 crabType() {
 
-				if [[  -z "$textinput"  ]]; then
-					{
-						echo ''
-						echo '    Text input stream is empty.'
-						echo ''
-						echo '    Enter text like this:'
-						echo '       superAdb -t "enter text here"'
-				}
-				else
-					{
+	if [[  -z "$textInput"  ]]; then
+		{
+			echo ''
+			echo '    Text input stream is empty.'
+			echo ''
+			echo '    Enter text like this:'
+			echo '       crab -t "enter text here"' # Change command name?
+	}
+	else
+		{
+			echo ''
 
-						echo ''
+			# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
+			# for SERIAL in $($ANDROID_HOME/platform-tools/adb devices | grep -v List | cut -f 1); do
+			for SERIAL in $(adb devices | grep -v List | cut -f 1); do
+			deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
+			deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
 
-						for SERIAL in $($ANDROID_HOME/platform-tools/adb devices | grep -v List | cut -f 1); do
-						deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
-						deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
-			
-						echo 'Entering text on' $deviceMake $deviceName'.'
+			echo 'Entering text on' $deviceMake $deviceName'.'
 
-						# replaces all spaces with %s
-						parsedText=${textinput// /%s}
+			# Replaces all spaces with %s
+			parsedText=${textInput// /%s}
 
-						#words=(`echo $textinput | tr ' '`)
+			#words=(`echo $textInput | tr ' '`)
 
-						#for i in words ; do
-							$ANDROID_HOME/platform-tools/adb -s $SERIAL shell input text $parsedText
-						#done
-						echo ''
-					done
-				}
-				fi
+			#for i in words ; do
+				# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
+				# $ANDROID_HOME/platform-tools/adb -s $SERIAL shell input text $parsedText
+				adb -s $SERIAL shell input text $parsedText
+			#done
+			echo ''
+		done
+	}
+	fi
 }
 
 
-#command select
+# Command selection
 if [[ $1 == "-l" ]]; then	# return connected devices
 	{
 		crabList
@@ -171,14 +193,18 @@ elif [[ $1 == "logs" ]]; then
 	}
 elif [[ $1 == "-t" ]]; then
 	{
-		textinput=$2
+		textInput=$2
 		crabType
 	}
-elif [[ $1 == "" ]]; then
+elif [[ $1 == "-select" ]]; then
+	{
+		crabSelect
+	}
+elif [[ $1 == "" || $1 == "help" ]]; then
 	{
 		crabHelp
 	}
-# if not crab command, execute as adb script
+# If not a crab command, execute as adb script
 else
 	{
 		echo `adb $1`
