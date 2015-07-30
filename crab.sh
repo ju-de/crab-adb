@@ -2,7 +2,7 @@
 
 numDevices=$(($(adb devices | wc -l) - 2))
 textInput=""
-selectedDeviceId=""
+SELECTEDIDS=()
 
 # Shows the user how to use the script
 crabHelp() {
@@ -12,6 +12,7 @@ crabHelp() {
 	# Replaces all instances of adb with crab
 	adb_help="${adb_help//adb/crab}"
 
+	echo ''
 	echo "Crab Version 0.1 using $adb_help"
 }
 
@@ -19,35 +20,32 @@ crabHelp() {
 # Outputs connected devices (modified part of superInstall)
 crabList() {
 	if [ "$numDevices" == "0" ]; then 
-		echo 'No devices detected! Please try again.'	
+		echo ''
+		echo 'No devices detected!' 
+		echo 'Troubleshooting tips if device is plugged in:'
+		echo ' - USB Debugging should be enabled on the device.'
+		echo ' - Execute in terminal "adb kill-server"'
+		echo ' - Execute in terminal "adb start-server"'
 		exit 1
 	else
-		echo 'Number of devices found: ' $numDevices
+		echo 'Number of devices found:' $numDevices
 		for ((i = 2; i <= (($numDevices) +1); i++))
 		do
-		(
-			# device_list=`adb devices` # Parses through string of deviceIDs and authorization states
-			# echo $device_list
-
 			deviceID=$(adb devices | tail -n +$i | head -n1 | cut -f 1 | xargs -I X)
 			deviceMake=$(adb -s $deviceID shell getprop ro.product.manufacturer | tr -d '\r') # outputs error if device is unauthorized
 			deviceName=$(adb -s $deviceID shell getprop ro.product.model | tr -d '\r') # outputs error if device is unauthorized
 			deviceOS=$(adb -s $deviceID shell getprop ro.build.version.release) # outputs error if device is unauthorized
 			
 			if [ "$numDevices" == "1" ]; then
-				echo ${deviceMake} ' - ' ${deviceName} ' - ' ${deviceID} ' - ' ${deviceOS} >> deviceOutput
+				echo ${deviceMake} ' - ' ${deviceName} ' - ' ${deviceID} ' - ' ${deviceOS}
 				# exit 1
 			else
-				echo $((i-1))". " ${deviceMake} ' - ' ${deviceName} ' - ' ${deviceID} ' - ' ${deviceOS} >> deviceOutput
+				echo $((i-1))". " ${deviceMake} ' - ' ${deviceName} ' - ' ${deviceID} ' - ' ${deviceOS} 
 				# exit 1
 			fi
-
 			# exit 1
-		)&
+
 		done
-		wait
-		cat deviceOutput | sort
-		rm -rf deviceOutput
 		exit 1
 	fi			
 }
@@ -57,11 +55,19 @@ crabSelect() {
 
 	if [[ "$numDevices" == "0" ]]; then
 		{
-			echo "No devices detected"
+			echo ''
+			echo 'No devices detected!' 
+			echo 'Troubleshooting tips if device is plugged in:'
+			echo ' - USB Debugging should be enabled on the device.'
+			echo ' - Execute in terminal "crab kill-server"'
+			echo ' - Execute in terminal "crab start-server"'
 		}
 	elif [[ "$numDevices" == "1" ]]; then
 		{
-		selectedDeviceId=$(adb devices | cut -f 5 -d " ")
+			deviceID=$(adb devices | tail -n2 | head -n1 | cut -f 1 | xargs -I X)
+			echo ''
+			echo 'Selected the only detected device:' $(adb -s $deviceID shell getprop ro.product.model | tr -d '\r')
+			SELECTEDIDS=$(adb devices | cut -f 5 -d " ")
 		}	
 	else
 		{
@@ -76,18 +82,21 @@ crabSelect() {
 			
 			# Adds each device to the string		
 			deviceList="$deviceList \"${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}\""
-			
 		done
 		
-		# Asks user to select device, and then prints out the device.
+		# Asks user to select device, and then stores its ID as a global variable
 		eval set $deviceList
 		select device in "$@"; 
 		do
 			# Save the ID of the selected device as a global variable
-			selectedDeviceId=$(echo $device | awk 'BEGIN {FS=" - "} {print $3}')
-			# echo The ID of the selected device is: $selectedDeviceId
+			SELECTEDIDS=$(echo $device | awk 'BEGIN {FS=" - "} {print $3}')
+			# echo "IDs of the selected device(s):" 
+			# for ID in $SELECTEDIDS; do
+			# 	echo $ID
+			# done
 			break
-		done;
+		
+		done
 		}
 	fi
 }
@@ -144,11 +153,12 @@ crabType() {
 	if [[  -z "$textInput"  ]]; then
 		{
 			echo ''
-			echo '    Text input stream is empty.'
+			echo 'Text input stream is empty.'
 			echo ''
-			echo '    Enter text like this:'
-			echo '       crab -t "enter text here"' # Change command name?
-	}
+			echo 'Enter text like this:'
+			echo '     crab -t "Enter text here"'
+			echo 'If quotes are not used, then only the first word will be typed.'
+		}
 	else
 		{
 			echo ''
@@ -156,24 +166,25 @@ crabType() {
 			# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
 			# for SERIAL in $($ANDROID_HOME/platform-tools/adb devices | grep -v List | cut -f 1); do
 			for SERIAL in $(adb devices | grep -v List | cut -f 1); do
-			deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
-			deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
+				deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
+				deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
 
-			echo 'Entering text on' $deviceMake $deviceName'.'
+				echo 'Entering text on' $deviceMake $deviceName'.'
 
-			# Replaces all spaces with %s
-			parsedText=${textInput// /%s}
+				# Replaces all spaces with %s
+				parsedText=${textInput// /%s}
 
-			#words=(`echo $textInput | tr ' '`)
+				#words=(`echo $textInput | tr ' '`)
 
-			#for i in words ; do
-				# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
-				# $ANDROID_HOME/platform-tools/adb -s $SERIAL shell input text $parsedText
-				adb -s $SERIAL shell input text $parsedText
-			#done
-			echo ''
-		done
-	}
+				#for i in words ; do
+					# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
+					# $ANDROID_HOME/platform-tools/adb -s $SERIAL shell input text $parsedText
+					adb -s $SERIAL shell input text $parsedText
+				#done
+				echo ''
+
+			done
+		}
 	fi
 }
 
@@ -205,8 +216,14 @@ elif [[ $1 == "" || $1 == "help" ]]; then
 		crabHelp
 	}
 # If not a crab command, execute as adb script
-else
+else 
 	{
-		echo `adb $1`
+		# echo `adb $1`
+
+		crabSelect
+		for ID in $SELECTEDIDS; do
+			# echo "adb -s" $ID $1
+			echo `adb -s $ID $1` #only works with the first command/flag
+		done
 	}
 fi
