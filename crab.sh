@@ -13,7 +13,7 @@ crabHelp() {
 	adb_help="${adb_help//adb/crab}"
 
 	echo ''
-	echo "Crab Version 0.1 using $adb_help"
+	echo 'Crab Version 0.1 using $adb_help'
 }
 
 
@@ -71,8 +71,7 @@ crabSelect() {
 		}	
 	else
 		{
-		# Modified part of superInstall
-		echo "Select a device using its number:"
+		# # Modified part of superInstall
 		for ((i = 2; i <= (($numDevices) +1); i++))
 		do
 			deviceID=$(adb devices | tail -n +$i | head -n1 | cut -f 1 | xargs -I X)
@@ -80,23 +79,45 @@ crabSelect() {
 			deviceName=$(adb -s $deviceID shell getprop ro.product.model | tr -d '\r')
 			deviceOS=$(adb -s $deviceID shell getprop ro.build.version.release | tr -d '\r')
 			
-			# Adds each device to the string		
-			deviceList="$deviceList \"${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}\""
+		# 	# Adds each device to the array		
+			DEVICELIST+=("${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}")
 		done
 		
 		# Asks user to select device, and then stores its ID as a global variable
-		eval set $deviceList
-		select device in "$@"; 
-		do
-			# Save the ID of the selected device as a global variable
-			SELECTEDIDS=$(echo $device | awk 'BEGIN {FS=" - "} {print $3}')
-			# echo "IDs of the selected device(s):" 
-			# for ID in $SELECTEDIDS; do
-			# 	echo $ID
+		# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
+			menu() {
+			    echo "Multiple devices connected. Please select from the list:"
+			    for i in ${!DEVICELIST[@]}; do 
+			        printf "%3d%s) %s\n" $((i+1)) "${choices[i]:- }" "${DEVICELIST[i]}"
+			    done
+			    [[ "$msg" ]] && echo "$msg"; :
+			}
+
+			prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
+			while menu && read -rp "$prompt" num && [[ "$num" ]]; do
+			    [[ "$num" != *[![:digit:]]* ]] &&
+			    (( num > 0 && num <= ${#DEVICELIST[@]} )) ||
+			    { msg="Invalid option: $num"; continue; }
+			    ((num--)); msg="${DEVICELIST[num]} was ${choices[num]:+de}selected"
+			    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
+			done
+
+			echo "You selected:"; msg=" nothing"
+			for i in ${!DEVICELIST[@]}; do 
+			    [[ "${choices[i]}" ]] && { 
+				    echo "${DEVICELIST[i]}"; 
+				    msg=""; 
+				    newId=$(echo ${DEVICELIST[i]} | awk 'BEGIN {FS=" - "} {print $3}');
+				    SELECTEDIDS+=($newId);
+				}
+				# Save the ID(s) of the selected device(s) in a global array
+			done
+			echo "$msg"
+
+			# echo "IDs of the selected device(s):"
+			# for i in ${!SELECTEDIDS[@]}; do
+			# 	echo "${SELECTEDIDS[i]}"
 			# done
-			break
-		
-		done
 		}
 	fi
 }
@@ -218,12 +239,13 @@ elif [[ $1 == "" || $1 == "help" ]]; then
 # If not a crab command, execute as adb script
 else 
 	{
-		# echo `adb $1`
+		echo `adb $1`
 
-		crabSelect
-		for ID in $SELECTEDIDS; do
-			# echo "adb -s" $ID $1
-			echo `adb -s $ID $1` #only works with the first command/flag
-		done
+		# crabSelect
+		# for ID in $SELECTEDIDS; do
+		# 	# echo "adb -s" $ID $1
+		# 	adb=`adb -s $ID $1` #only works with the first command/flag
+		# 	echo $adb
+		# done
 	}
 fi
