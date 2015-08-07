@@ -1,26 +1,23 @@
 #!/bin/bash
 
+# Vlad's Stuff:
+# adb="$ANDROID_HOME/platform-tools/adb"
+# devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort))
+# numDevices=${#devices[@]}
+
 numDevices=$(($(adb devices | wc -l) - 2))
-textInput=""
+DEVICELIST=()
 SELECTEDIDS=()
+textInput=""
 
 # Shows the user how to use the script
 crabHelp() {
-	# Suppresses adb help output and error
-	adb_help=`(adb help) 2>&1`
-
-	# Replaces all instances of adb with crab
-	adb_help="${adb_help//adb/crab}"
-
-	echo ''
-	echo 'Crab Version 0.1 using $adb_help'
+	echo "Crab Version 0.1 using $(adb help 2>&1)"
 }
 
-
-# Outputs connected devices (modified part of superInstall)
-crabList() {
+# Adds connected devices to a global array (modified part of superInstall)
+getDevices() {
 	if [ "$numDevices" == "0" ]; then 
-		echo ''
 		echo 'No devices detected!' 
 		echo 'Troubleshooting tips if device is plugged in:'
 		echo ' - USB Debugging should be enabled on the device.'
@@ -36,63 +33,38 @@ crabList() {
 			deviceName=$(adb -s $deviceID shell getprop ro.product.model | tr -d '\r') # outputs error if device is unauthorized
 			deviceOS=$(adb -s $deviceID shell getprop ro.build.version.release) # outputs error if device is unauthorized
 			
-			if [ "$numDevices" == "1" ]; then
-				echo ${deviceMake} ' - ' ${deviceName} ' - ' ${deviceID} ' - ' ${deviceOS}
-				# exit 1
-			else
-				echo $((i-1))". " ${deviceMake} ' - ' ${deviceName} ' - ' ${deviceID} ' - ' ${deviceOS} 
-				# exit 1
-			fi
-			# exit 1
+			# Adds each device to the global array		
+			DEVICELIST+=("${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}")
 
 		done
-		exit 1
 	fi			
+}
+
+menu() {
+    for i in ${!DEVICELIST[@]}; do 
+        printf "%3d%s) %s\n" $((i+1)) "${choices[i]:- }" "${DEVICELIST[i]}"
+    done
+}
+
+# Outputs connected devices
+crabList() {
+	getDevices
+	menu
 }
 
 # Prompts user to select a device if multiple are connected
 crabSelect() {
 
-	if [[ "$numDevices" == "0" ]]; then
-		{
-			echo ''
-			echo 'No devices detected!' 
-			echo 'Troubleshooting tips if device is plugged in:'
-			echo ' - USB Debugging should be enabled on the device.'
-			echo ' - Execute in terminal "crab kill-server"'
-			echo ' - Execute in terminal "crab start-server"'
-		}
-	elif [[ "$numDevices" == "1" ]]; then
-		{
-			deviceID=$(adb devices | tail -n2 | head -n1 | cut -f 1 | xargs -I X)
-			echo ''
-			echo 'Selected the only detected device:' $(adb -s $deviceID shell getprop ro.product.model | tr -d '\r')
-			SELECTEDIDS=$(adb devices | cut -f 5 -d " ")
-		}	
+	getDevices
+
+	if [[ "$numDevices" == "1" ]]; then
+			echo 'Selected the only detected device:' ${DEVICELIST[0]}
+			SELECTEDIDS=${DEVICELIST[0]}
 	else
 		{
-		# # Modified part of superInstall
-		for ((i = 2; i <= (($numDevices) +1); i++))
-		do
-			deviceID=$(adb devices | tail -n +$i | head -n1 | cut -f 1 | xargs -I X)
-			deviceMake=$(adb -s $deviceID shell getprop ro.product.manufacturer | tr -d '\r')
-			deviceName=$(adb -s $deviceID shell getprop ro.product.model | tr -d '\r')
-			deviceOS=$(adb -s $deviceID shell getprop ro.build.version.release | tr -d '\r')
-			
-		# 	# Adds each device to the array		
-			DEVICELIST+=("${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}")
-		done
-		
-		# Asks user to select device, and then stores its ID as a global variable
-		# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
-			menu() {
-			    echo "Multiple devices connected. Please select from the list:"
-			    for i in ${!DEVICELIST[@]}; do 
-			        printf "%3d%s) %s\n" $((i+1)) "${choices[i]:- }" "${DEVICELIST[i]}"
-			    done
-			    [[ "$msg" ]] && echo "$msg"; :
-			}
-
+			# Asks user to select device, and then stores its ID as a global variable
+			# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
+			echo "Multiple devices connected. Please select from the list:"
 			prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
 			while menu && read -rp "$prompt" num && [[ "$num" ]]; do
 			    [[ "$num" != *[![:digit:]]* ]] &&
@@ -232,7 +204,7 @@ elif [[ $1 == "-select" ]]; then
 	{
 		crabSelect
 	}
-elif [[ $1 == "" || $1 == "help" ]]; then
+elif [[ $1 == "" || $1 == "-help" || $1 == "-h" ]]; then
 	{
 		crabHelp
 	}
@@ -240,6 +212,11 @@ elif [[ $1 == "" || $1 == "help" ]]; then
 else 
 	{
 		echo `adb $1`
+		echo $?
+		if [[ $(echo $?) == 1 ]]; then
+			echo 'error'
+			# crabHelp()
+		fi
 
 		# crabSelect
 		# for ID in $SELECTEDIDS; do
