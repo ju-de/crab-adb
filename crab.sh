@@ -2,8 +2,7 @@
 
 adb="$ANDROID_HOME/platform-tools/adb"
 
-#This sorts everything by deviceID is this neccesary
-devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort))
+devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort)) # Is it necessary to sort everything by deviceID?
 numDevices=${#devices[@]}
 
 DEVICELIST=()
@@ -28,23 +27,19 @@ getDevices() {
 		echo 'Number of devices found:' $numDevices
 		for ((i = 0; i < ($numDevices); i++))
 		do
-			deviceID=${devices[i]}
-
-			deviceArray=$($)
-			deviceMake=$($adb -s $deviceID shell getprop ro.product.manufacturer | tr -d '\r') # outputs error if device is unauthorized
-			deviceName=$($adb -s $deviceID shell getprop ro.product.model | tr -d '\r') # outputs error if device is unauthorized
-			deviceOS=$($adb -s $deviceID shell getprop ro.build.version.release) # outputs error if device is unauthorized
+			deviceInfo=$($adb -s ${devices[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')
 			
-			# Adds each device to the global array		
-			DEVICELIST+=("${deviceMake}  -  ${deviceName}  -  ${deviceID}  -  ${deviceOS}")
-
+			# Adds each device to a global array		
+			DEVICELIST+=("$deviceInfo ${devices[i]}")
 		done
 	fi			
 }
 
+# Helper function for outputting connected devices
 menu() {
     for i in ${!DEVICELIST[@]}; do 
-        printf "%3d%s) %s\n" $((i+1)) "${choices[i]:- }" "${DEVICELIST[i]}"
+        printf "%3d%s) %s" $((i+1)) "${choices[i]:- }" 
+        echo ${DEVICELIST[i]}
     done
 }
 
@@ -53,17 +48,6 @@ crabList() {
 	getDevices
 	menu
 }
-
-# crabInstall () {
-
-# 	numSelectDevices=${#SELECTEDIDS[@]}
-# 	for SERIAL in DEVICELIST;
-# 	do
-# 		adb -s SERIAL install "$1";
-
-
-
-# }
 
 # Prompts user to select a device if multiple are connected
 crabSelect() {
@@ -90,12 +74,13 @@ crabSelect() {
 			echo "You selected:"; msg=" nothing"
 			for i in ${!DEVICELIST[@]}; do 
 			    [[ "${choices[i]}" ]] && { 
-				    echo "${DEVICELIST[i]}"; 
+				    echo ${DEVICELIST[i]}; 
 				    msg=""; 
-				    newId=$(echo ${DEVICELIST[i]} | awk 'BEGIN {FS=" - "} {print $3}');
+				    newId=${devices[i]};
+
+					# Saves the ID(s) of the selected device(s) in a global array
 				    SELECTEDIDS+=($newId);
 				}
-				# Save the ID(s) of the selected device(s) in a global array
 			done
 			echo "$msg"
 
@@ -106,6 +91,14 @@ crabSelect() {
 		}
 	fi
 }
+
+# Installs apk on selected devices
+# crabInstall () {
+# 	numSelectDevices=${#SELECTEDIDS[@]}
+# 	for SERIAL in DEVICELIST;
+# 	do
+# 		adb -s SERIAL install "$1";
+# }
 
 # Takes a screenshot on connected devices (modified part of superadb)
 # crabScreenshot() {
@@ -194,43 +187,45 @@ crabSelect() {
 # 	fi
 # }
 
-crabSelectDevice () {
+# Selects all real devices
+crabSelectDevice() {
 	devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu'))
 	numDevices=${#devices[@]}
 	crabSelect
 }
 
-crabSelectEmulator () {
+# Selects all emulators
+crabSelectEmulator() {
 	devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu'))
 	numDevices=${#devices[@]}
 	crabSelect
 }
 
-deviceOrEmulator (){
+# Helper function for flags
+# deviceOrEmulator() {
+# 	if [[ $1 == "-d" ]]; then 
+# 		{
+# 			crabSelectDevice
+# 		}
 
-if [[ $1 == "-d" ]]; then 
-	{
-		crabSelectDevice
-	}
+# 	elif [[ $1 == "-e" ]]; then 
+# 		{
+# 			crabSelectEmulator
+# 		}
 
-elif [[ $1 == "-e" ]]; then 
-	{
-		crabSelectEmulator
-	}
+# 	# If you don't want to be promted and just want to select a device, then -s can be used
+# 	# Some people use this so it should to be implemented.
+# 	# elif [[ $1 == "-s"]]
+# 	# 	{
 
-#If you don't want to be promted and just want to select a device, then -s can be used
-#Some people use this so it should to be implemented.
-# elif [[ $1 == "-s"]]
-# 	{
+# 	# 	}
 
-# 	}
-
-else 
-	{
-		crabSelect
-	}
-fi
-}
+# 	else 
+# 		{
+# 			crabSelect
+# 		}
+# 	fi
+# }
 
 # Command selection
 if [[ $1 == "-l" ]]; then	# return connected devices
@@ -255,7 +250,7 @@ elif [[ $1 == "-select" ]]; then
 		crabSelect
 	}
 
-#Probably need to modify these and make them methods
+# Probably need to modify these and make them methods
 elif [[ $1 == "-d" ]]; then  
  	{
  		crabSelectDevice
