@@ -8,6 +8,12 @@ numDevices=${#DEVICEIDS[@]}
 flag="" # Command flag
 DEVICELIST=()
 SELECTEDIDS=()
+COMMANDS=("-l" "-s" "logs" "-t" "help")
+
+# for i in ${COMMANDS[@]}; do
+# 	echo "$i"
+# done
+
 textInput=""
 
 # Shows the user how to use the script
@@ -200,11 +206,7 @@ crabSelect() {
 # 	fi
 # }
 
-if [[ $flag == "-help" || $1 == "help" || $1 == "-h" ]]; then
-	{
-		crabHelp
-	}
-elif [[ $1 == "-d" ]]; then 
+if [[ $1 == "-d" ]]; then 
 	{
 		DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) # Gets all physical devices
 		numDevices=${#DEVICEIDS[@]}
@@ -225,30 +227,30 @@ else
 fi
 
 # Command selection
-if [[ $flag == "-l" ]]; then
+if [[ $flag == ${COMMANDS[0]} ]]; then	#-l
 	{
 		crabList
 	}
-elif [[ $flag == "-s" ]]; then
+elif [[ $flag == ${COMMANDS[1]} ]]; then #-s
 	{
 		crabSelect
-		# crabScreenshot
+		crabScreenshot
 	}
-elif [[ $flag == "logs" ]]; then
+elif [[ $flag == ${COMMANDS[2]} ]]; then #logs
 	{
 		crabSelect
 		crabLog
 	}
-elif [[ $flag == "-t" ]]; then
+elif [[ $flag == ${COMMANDS[3]} ]]; then #-t
 	{
 		crabSelect
 		textInput=$2
 		crabType
 	}
-# elif [[ $flag == "-select" ]]; then
-# 	{
-# 		crabSelect
-# 	}
+elif [[ $1 == ${COMMANDS[4]} ]]; then #help
+	{
+		crabHelp
+	}
 # If not a crab command, execute as adb script
 else 
 	{
