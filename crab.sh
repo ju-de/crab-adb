@@ -2,9 +2,10 @@
 
 adb="$ANDROID_HOME/platform-tools/adb"
 
-devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort)) # Is it necessary to sort everything by deviceID?
-numDevices=${#devices[@]}
+DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort))
+numDevices=${#DEVICEIDS[@]}
 
+flag="" # Command flag
 DEVICELIST=()
 SELECTEDIDS=()
 textInput=""
@@ -15,7 +16,7 @@ crabHelp() {
 }
 
 # Adds connected devices to a global array (modified part of superInstall)
-getDevices() {
+getAllDevices() {
 	if [ "$numDevices" == "0" ]; then 
 		echo 'No devices detected!' 
 		echo 'Troubleshooting tips if device is plugged in:'
@@ -27,10 +28,10 @@ getDevices() {
 		echo 'Number of devices found:' $numDevices
 		for ((i = 0; i < ($numDevices); i++))
 		do
-			deviceInfo=$($adb -s ${devices[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')
+			deviceInfo=$($adb -s ${DEVICEIDS[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')
 			
 			# Adds each device to a global array		
-			DEVICELIST+=("$deviceInfo ${devices[i]}")
+			DEVICELIST+=("$deviceInfo ${DEVICEIDS[i]}")
 		done
 	fi			
 }
@@ -41,18 +42,19 @@ menu() {
         printf "%3d%s) %s" $((i+1)) "${choices[i]:- }" 
         echo ${DEVICELIST[i]}
     done
+    [[ "$msg" ]] && echo $msg; :
 }
 
 # Outputs connected devices
 crabList() {
-	getDevices
+	getAllDevices
 	menu
 }
 
 # Prompts user to select a device if multiple are connected
 crabSelect() {
 
-	getDevices
+	getAllDevices
 
 	if [[ "$numDevices" == "1" ]]; then
 			echo 'Selected the only detected device:' ${DEVICELIST[0]}
@@ -62,13 +64,23 @@ crabSelect() {
 			# Asks user to select device, and then stores its ID as a global variable
 			# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
 			echo "Multiple devices connected. Please select from the list:"
+			echo "  0 ) All devices"
 			prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
 			while menu && read -rp "$prompt" num && [[ "$num" ]]; do
-			    [[ "$num" != *[![:digit:]]* ]] &&
-			    (( num > 0 && num <= ${#DEVICELIST[@]} )) ||
-			    { msg="Invalid option: $num"; continue; }
-			    ((num--)); msg="${DEVICELIST[num]} was ${choices[num]:+de}selected"
-			    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
+				echo "  0 ) All devices"
+			    if [[ "$num" == "0" ]]; then 
+			    	while [[ $num < ${#DEVICELIST[@]} ]]; do
+			    		choices[num]="+"
+			    		num=$((num+1))
+			    	done
+			    	msg="All devices were selected"
+			    else
+				    [[ "$num" != *[![:digit:]]* ]] &&
+				    (( num >= 0 && num <= ${#DEVICELIST[@]} )) ||
+				    { msg="Invalid option: $num"; continue; }
+				    ((num--)); msg="${DEVICELIST[num]} was ${choices[num]:+de}selected"
+				    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
+			    fi
 			done
 
 			echo "You selected:"; msg=" nothing"
@@ -76,7 +88,7 @@ crabSelect() {
 			    [[ "${choices[i]}" ]] && { 
 				    echo ${DEVICELIST[i]}; 
 				    msg=""; 
-				    newId=${devices[i]};
+				    newId=${DEVICEIDS[i]};
 
 					# Saves the ID(s) of the selected device(s) in a global array
 				    SELECTEDIDS+=($newId);
@@ -84,6 +96,7 @@ crabSelect() {
 			done
 			echo "$msg"
 
+			# Test to verify the correct device IDs are selected
 			# echo "IDs of the selected device(s):"
 			# for i in ${!SELECTEDIDS[@]}; do
 			# 	echo "${SELECTEDIDS[i]}"
@@ -187,88 +200,59 @@ crabSelect() {
 # 	fi
 # }
 
-# Selects all real devices
-crabSelectDevice() {
-	devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu'))
-	numDevices=${#devices[@]}
-	crabSelect
-}
-
-# Selects all emulators
-crabSelectEmulator() {
-	devices=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu'))
-	numDevices=${#devices[@]}
-	crabSelect
-}
-
-# Helper function for flags
-# deviceOrEmulator() {
-# 	if [[ $1 == "-d" ]]; then 
-# 		{
-# 			crabSelectDevice
-# 		}
-
-# 	elif [[ $1 == "-e" ]]; then 
-# 		{
-# 			crabSelectEmulator
-# 		}
-
-# 	# If you don't want to be promted and just want to select a device, then -s can be used
-# 	# Some people use this so it should to be implemented.
-# 	# elif [[ $1 == "-s"]]
-# 	# 	{
-
-# 	# 	}
-
-# 	else 
-# 		{
-# 			crabSelect
-# 		}
-# 	fi
-# }
-
-# Command selection
-if [[ $1 == "-l" ]]; then	# return connected devices
-	{
-		crabList
-	}
-elif [[ $1 == "-s" ]]; then
-	{
-		crabScreenshot
-	}
-elif [[ $1 == "logs" ]]; then
-	{
-		crabLog
-	}
-elif [[ $1 == "-t" ]]; then
-	{
-		textInput=$2
-		crabType
-	}
-elif [[ $1 == "-select" ]]; then
-	{
-		crabSelect
-	}
-
-# Probably need to modify these and make them methods
-elif [[ $1 == "-d" ]]; then  
- 	{
- 		crabSelectDevice
- 	}
-
-elif [[ $1 == "-e" ]]; then
-	{
-		crabSelectEmulator
-	}
-
-elif [[ $1 == "-help" || $1 == "help" || $1 == "-h" ]]; then
+if [[ $flag == "-help" || $1 == "help" || $1 == "-h" ]]; then
 	{
 		crabHelp
 	}
+elif [[ $1 == "-d" ]]; then 
+	{
+		DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) # Gets all physical devices
+		numDevices=${#DEVICEIDS[@]}
+		# SELECTEDIDS=DEVICEIDS # Automatically selects all physical devices
+		flag=$2
+	}
+elif [[ $1 == "-e" ]]; then 
+	{
+		DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) # Gets all emulators
+		numDevices=${#DEVICEIDS[@]}
+		# SELECTEDIDS=DEVICEIDS # Automatically selects all emulators
+		flag=$2
+	}
+else 
+	{
+		flag=$1
+	}
+fi
+
+# Command selection
+if [[ $flag == "-l" ]]; then
+	{
+		crabList
+	}
+elif [[ $flag == "-s" ]]; then
+	{
+		crabSelect
+		# crabScreenshot
+	}
+elif [[ $flag == "logs" ]]; then
+	{
+		crabSelect
+		crabLog
+	}
+elif [[ $flag == "-t" ]]; then
+	{
+		crabSelect
+		textInput=$2
+		crabType
+	}
+# elif [[ $flag == "-select" ]]; then
+# 	{
+# 		crabSelect
+# 	}
 # If not a crab command, execute as adb script
 else 
 	{
-		adb $1 2> /dev/null
+		adb $flag 2> /dev/null
 		if [[ $(echo $?) == 1 ]]; then
 			crabHelp
 		fi
