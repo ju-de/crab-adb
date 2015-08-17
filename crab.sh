@@ -4,10 +4,12 @@ adb="$ANDROID_HOME/platform-tools/adb"
 
 DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort))
 numDevices=${#DEVICEIDS[@]}
-
-flag="" # Command flag
 DEVICELIST=()
 SELECTEDIDS=()
+
+selection=true # Toggles device selection
+flag="" # Command flag
+SELECTIONS=("-d" "-e" "-a" "-ad" "-ae")
 COMMANDS=("-l" "-s" "logs" "-t" "help")
 
 # for i in ${COMMANDS[@]}; do
@@ -42,6 +44,18 @@ getAllDevices() {
 	fi			
 }
 
+# Gets all physical devices
+getRealDevices() {
+	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) 
+	numDevices=${#DEVICEIDS[@]}
+}
+
+# Gets all emulators
+getEmulators() {
+	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) 
+	numDevices=${#DEVICEIDS[@]}
+}
+
 # Helper function for outputting connected devices
 menu() {
     for i in ${!DEVICELIST[@]}; do 
@@ -59,54 +73,57 @@ crabList() {
 
 # Prompts user to select a device if multiple are connected
 crabSelect() {
+	if [[ $selection = true ]]; then {
 
-	getAllDevices
+		getAllDevices
 
-	if [[ "$numDevices" == "1" ]]; then
-			echo 'Selected the only detected device:' ${DEVICELIST[0]}
-			SELECTEDIDS=${DEVICELIST[0]}
-	else
-		{
-			# Asks user to select device, and then stores its ID as a global variable
-			# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
-			echo "Multiple devices connected. Please select from the list:"
-			echo "  0 ) All devices"
-			prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
-			while menu && read -rp "$prompt" num && [[ "$num" ]]; do
+		if [[ "$numDevices" == "1" ]]; then
+				echo 'Selected the only detected device:' ${DEVICELIST[0]}
+				SELECTEDIDS=${DEVICELIST[0]}
+		else
+			{
+				# Asks user to select device, and then stores its ID as a global variable
+				# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
+				echo "Multiple devices connected. Please select from the list:"
 				echo "  0 ) All devices"
-			    if [[ "$num" == "0" ]]; then 
-			    	while [[ $num < ${#DEVICELIST[@]} ]]; do
-			    		choices[num]="+"
-			    		num=$((num+1))
-			    	done
-			    	msg="All devices were selected"
-			    else
-				    [[ "$num" != *[![:digit:]]* ]] &&
-				    (( num >= 0 && num <= ${#DEVICELIST[@]} )) ||
-				    { msg="Invalid option: $num"; continue; }
-				    ((num--)); msg="${DEVICELIST[num]} was ${choices[num]:+de}selected"
-				    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
-			    fi
-			done
+				prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
+				while menu && read -rp "$prompt" num && [[ "$num" ]]; do
+					echo "  0 ) All devices"
+				    if [[ "$num" == "0" ]]; then 
+				    	while [[ $num < ${#DEVICELIST[@]} ]]; do
+				    		choices[num]="+"
+				    		num=$((num+1))
+				    	done
+				    	msg="All devices were selected"
+				    else
+					    [[ "$num" != *[![:digit:]]* ]] &&
+					    (( num >= 0 && num <= ${#DEVICELIST[@]} )) ||
+					    { msg="Invalid option: $num"; continue; }
+					    ((num--)); msg="${DEVICELIST[num]} was ${choices[num]:+de}selected"
+					    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
+				    fi
+				done
 
-			echo "You selected:"; msg=" nothing"
-			for i in ${!DEVICELIST[@]}; do 
-			    [[ "${choices[i]}" ]] && { 
-				    echo ${DEVICELIST[i]}; 
-				    msg=""; 
-				    newId=${DEVICEIDS[i]};
+				echo "You selected:"; msg=" nothing"
+				for i in ${!DEVICELIST[@]}; do 
+				    [[ "${choices[i]}" ]] && { 
+					    echo ${DEVICELIST[i]}; 
+					    msg=""; 
+					    newId=${DEVICEIDS[i]};
 
-					# Saves the ID(s) of the selected device(s) in a global array
-				    SELECTEDIDS+=($newId);
-				}
-			done
-			echo "$msg"
+						# Saves the ID(s) of the selected device(s) in a global array
+					    SELECTEDIDS+=($newId);
+					}
+				done
+				echo "$msg"
 
-			# Test to verify the correct device IDs are selected
-			# echo "IDs of the selected device(s):"
-			# for i in ${!SELECTEDIDS[@]}; do
-			# 	echo "${SELECTEDIDS[i]}"
-			# done
+				# Test to verify the correct device IDs are selected
+				# echo "IDs of the selected device(s):"
+				# for i in ${!SELECTEDIDS[@]}; do
+				# 	echo "${SELECTEDIDS[i]}"
+				# done
+			}
+		fi
 		}
 	fi
 }
@@ -206,21 +223,37 @@ crabSelect() {
 # 	fi
 # }
 
-if [[ $1 == "-d" ]]; then 
+if [[ $1 == ${SELECTIONS[0]} ]]; then # -d
 	{
-		DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) # Gets all physical devices
-		numDevices=${#DEVICEIDS[@]}
-		# SELECTEDIDS=DEVICEIDS # Automatically selects all physical devices
+		getRealDevices
 		flag=$2
 	}
-elif [[ $1 == "-e" ]]; then 
+elif [[ $1 == ${SELECTIONS[1]} ]]; then # -e
 	{
-		DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) # Gets all emulators
-		numDevices=${#DEVICEIDS[@]}
-		# SELECTEDIDS=DEVICEIDS # Automatically selects all emulators
+		getEmulators
 		flag=$2
 	}
-else 
+elif [[ $1 == ${SELECTIONS[2]} ]]; then # -a
+	{
+		SELECTEDIDS=DEVICEIDS
+		selection=false
+		flag=$2
+	}
+elif [[ $1 == ${SELECTIONS[3]} ]]; then # -ad
+	{
+		getRealDevices
+		SELECTEDIDS=DEVICEIDS # Automatically selects all real devices
+		selection=false
+		flag=$2
+	}
+elif [[ $1 == ${SELECTIONS[4]} ]]; then # -ae
+	{
+		getEmulators
+		SELECTEDIDS=DEVICEIDS # Automatically selects all emulators
+		selection=false
+		flag=$2
+	} 
+else
 	{
 		flag=$1
 	}
