@@ -24,6 +24,15 @@ crabHelp() {
 	echo "Crab Version 0.1 using $(adb help 2>&1)"
 }
 
+
+#Checks to see if ANDROID_HOME has been set
+checkAndroidHome() {
+if [[ "$ANDROID_HOME" == "" ]]; then
+	echo "ANDROID_HOME is not set or is set incorrectly"
+	exit 1
+fi
+}
+
 # Adds connected devices to a global array (modified part of superInstall)
 getDeviceInfo() {
 	if [ "$numDevices" == "0" ]; then 
@@ -206,6 +215,8 @@ crabScreenshot() {
 # 	fi
 # }
 
+checkAndroidHome
+
 if [[ $1 == ${SELECTIONS[0]} ]]; then # -d
 	{
 		getRealDevices
@@ -218,21 +229,22 @@ elif [[ $1 == ${SELECTIONS[1]} ]]; then # -e
 	}
 elif [[ $1 == ${SELECTIONS[2]} ]]; then # -a
 	{
-		SELECTEDIDS=DEVICEIDS
+		SELECTEDIDS=("${DEVICEIDS[@]}")
+
 		selection=false
 		flag=$2
 	}
 elif [[ $1 == ${SELECTIONS[3]} ]]; then # -ad
 	{
 		getRealDevices
-		SELECTEDIDS=DEVICEIDS # Automatically selects all real devices
+		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all real devices
 		selection=false
 		flag=$2
 	}
 elif [[ $1 == ${SELECTIONS[4]} ]]; then # -ae
 	{
 		getEmulators
-		SELECTEDIDS=DEVICEIDS # Automatically selects all emulators
+		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all emulators
 		selection=false
 		flag=$2
 	} 
