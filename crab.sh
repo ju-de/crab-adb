@@ -4,8 +4,9 @@ adb="$ANDROID_HOME/platform-tools/adb"
 
 DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort))
 numDevices=${#DEVICEIDS[@]}
-DEVICELIST=()
+DEVICEINFO=()
 SELECTEDIDS=()
+SELECTEDINFO=()
 
 selection=true # Toggles device selection
 flag="" # Command flag
@@ -24,7 +25,7 @@ crabHelp() {
 }
 
 # Adds connected devices to a global array (modified part of superInstall)
-getAllDevices() {
+getDeviceInfo() {
 	if [ "$numDevices" == "0" ]; then 
 		echo 'No devices detected!' 
 		echo 'Troubleshooting tips if device is plugged in:'
@@ -36,10 +37,7 @@ getAllDevices() {
 		echo 'Number of devices found:' $numDevices
 		for ((i = 0; i < ($numDevices); i++))
 		do
-			deviceInfo=$($adb -s ${DEVICEIDS[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')
-			
-			# Adds each device to a global array		
-			DEVICELIST+=("$deviceInfo ${DEVICEIDS[i]}")
+			DEVICEINFO+=("$(echo "$($adb -s ${DEVICEIDS[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')" | tr '\n' ' ')")
 		done
 	fi			
 }
@@ -58,16 +56,16 @@ getEmulators() {
 
 # Helper function for outputting connected devices
 menu() {
-    for i in ${!DEVICELIST[@]}; do 
+    for i in ${!DEVICEIDS[@]}; do 
         printf "%3d%s) %s" $((i+1)) "${choices[i]:- }" 
-        echo ${DEVICELIST[i]}
+        echo ${DEVICEINFO[i]} ${DEVICEIDS[i]}
     done
     [[ "$msg" ]] && echo $msg; :
 }
 
 # Outputs connected devices
 crabList() {
-	getAllDevices
+	getDeviceInfo
 	menu
 }
 
@@ -75,11 +73,11 @@ crabList() {
 crabSelect() {
 	if [[ $selection = true ]]; then {
 
-		getAllDevices
+		getDeviceInfo
 
 		if [[ "$numDevices" == "1" ]]; then
-				echo 'Selected the only detected device:' ${DEVICELIST[0]}
-				SELECTEDIDS=${DEVICELIST[0]}
+				echo 'Selected the only detected device:' ${DEVICEINFO[0]} ${DEVICEIDS[0]}
+				SELECTEDIDS=${DEVICEIDS[0]}
 		else
 			{
 				# Asks user to select device, and then stores its ID as a global variable
@@ -90,34 +88,34 @@ crabSelect() {
 				while menu && read -rp "$prompt" num && [[ "$num" ]]; do
 					echo "  0 ) All devices"
 				    if [[ "$num" == "0" ]]; then 
-				    	while [[ $num < ${#DEVICELIST[@]} ]]; do
+				    	while [[ $num < ${#DEVICEIDS[@]} ]]; do
 				    		choices[num]="+"
 				    		num=$((num+1))
 				    	done
 				    	msg="All devices were selected"
 				    else
 					    [[ "$num" != *[![:digit:]]* ]] &&
-					    (( num >= 0 && num <= ${#DEVICELIST[@]} )) ||
+					    (( num >= 0 && num <= ${#DEVICEIDS[@]} )) ||
 					    { msg="Invalid option: $num"; continue; }
-					    ((num--)); msg="${DEVICELIST[num]} was ${choices[num]:+de}selected"
+					    ((num--)); msg="${DEVICEINFO[num]} ${DEVICEIDS[num]} was ${choices[num]:+de}selected"
 					    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
 				    fi
 				done
 
 				echo "You selected:"; msg=" nothing"
-				for i in ${!DEVICELIST[@]}; do 
+				for i in ${!DEVICEIDS[@]}; do 
 				    [[ "${choices[i]}" ]] && { 
-					    echo ${DEVICELIST[i]}; 
+					    echo ${DEVICEINFO[i]} ${DEVICEIDS[i]}; 
 					    msg=""; 
-					    newId=${DEVICEIDS[i]};
 
-						# Saves the ID(s) of the selected device(s) in a global array
-					    SELECTEDIDS+=($newId);
+						# Saves the ID(s) and info of the selected device(s) in global arrays
+					    SELECTEDIDS+=(${DEVICEIDS[i]});
+					    SELECTEDINFO+=("${DEVICEINFO[i]}");
 					}
 				done
 				echo "$msg"
 
-				# Test to verify the correct device IDs are selected
+				# # Test to verify the correct device IDs are selected
 				# echo "IDs of the selected device(s):"
 				# for i in ${!SELECTEDIDS[@]}; do
 				# 	echo "${SELECTEDIDS[i]}"
@@ -137,30 +135,21 @@ crabSelect() {
 # }
 
 # Takes a screenshot on connected devices (modified part of superadb)
-# crabScreenshot() {
-# 	echo 'Taking Screenshot on all devices:'	
-# 	echo ''
+crabScreenshot() {
+	echo 'Taking screenshot on selected devices:'	
+	echo ''
 
-# 	# Figures out which devices are connected and what their serial number is
-# 	for SERIAL in $(adb devices | grep -v List | cut -f 1); do
-# 		# Gets the device info
-# 		deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
-# 		deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
-# 		# Gets the time stamp
-# 		timestamp=$(date +"%I-%M-%S")
-
-# 		# Credit to the following site for screenshot copying directly to the current directory
-# 		# http://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html
-
-# 		# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
-# 		# $ANDROID_HOME/platform-tools/adb -s $SERIAL shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' > $deviceMake-$timestamp-$screenshotname 
-# 		adb -s $SERIAL shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' > $deviceMake-$timestamp-$screenshotname 
+	for i in ${!SELECTEDIDS[@]}; do
+		timestamp=$(date +"%I-%M-%S")
+		# Credit to the following site for screenshot copying directly to the current directory
+		# http://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html
+		adb -s ${SELECTEDIDS[i]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[i]}"-$timestamp-"screenshot.png"
 		
-# 		# Tells the user which device the screenshot was taken on
-# 		echo 'Took screenshot on: ' $deviceMake ' ' $deviceName ' @ ' $timestamp
+		# Tells the user which device and when the screenshot was taken on
+		echo 'Took screenshot on:' ${SELECTEDINFO[i]} ${SELECTEDIDS[i]} '@' $timestamp
 
-# 	done
-# }
+	done
+}
 
 # Grabs crash logs from connected devices (modified part of superadb)
 # crabLog() {
@@ -174,8 +163,6 @@ crabSelect() {
 
 # 		echo 'Logcat from' $deviceMake $deviceName '@' $timestamp
 # 		echo ''
-# 		# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
-# 		# $ANDROID_HOME/platform-tools/adb -s $SERIAL logcat -d | grep AndroidR
 # 		adb -s $SERIAL logcat -d | grep AndroidR
 # 		echo ''
 
@@ -198,8 +185,6 @@ crabSelect() {
 # 		{
 # 			echo ''
 
-# 			# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
-# 			# for SERIAL in $($ANDROID_HOME/platform-tools/adb devices | grep -v List | cut -f 1); do
 # 			for SERIAL in $(adb devices | grep -v List | cut -f 1); do
 # 				deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
 # 				deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
@@ -212,8 +197,6 @@ crabSelect() {
 # 				#words=(`echo $textInput | tr ' '`)
 
 # 				#for i in words ; do
-# 					# May or may not need $ANDROID_HOME/platform-tools/ depending on the computer
-# 					# $ANDROID_HOME/platform-tools/adb -s $SERIAL shell input text $parsedText
 # 					adb -s $SERIAL shell input text $parsedText
 # 				#done
 # 				echo ''
