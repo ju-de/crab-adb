@@ -2,7 +2,7 @@
 
 adb="$ANDROID_HOME/platform-tools/adb"
 
-DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort))
+DEVICEIDS=($($adb devices 2> /dev/null | sed '1,1d' | sed '$d' | cut -f 1 | sort)) 
 numDevices=${#DEVICEIDS[@]}
 DEVICEINFO=()
 SELECTEDIDS=()
@@ -27,10 +27,16 @@ crabHelp() {
 
 #Checks to see if ANDROID_HOME has been set
 checkAndroidHome() {
-if [[ "$ANDROID_HOME" == "" ]]; then
-	echo "ANDROID_HOME is not set or is set incorrectly"
-	exit 1
-fi
+	$adb version >/dev/null 2>&1
+	error=$?
+
+	if [[ -z $ANDROID_HOME ]]; then
+		echo "ANDROID_HOME is not set!"
+		exit 1
+	elif [[ $error == "127" ]]; then
+		echo "ANDROID_HOME is not set correctly!"
+		exit 1
+	fi
 }
 
 # Adds connected devices to a global array (modified part of superInstall)
@@ -165,7 +171,7 @@ crabScreenshot() {
 # 	echo 'Taking logs from all devices:'	
 # 	echo ''
 
-# 	for SERIAL in $(adb devices | grep -v List | cut -f 1); do
+# 	for i in ${!SELECTEDIDS[@]}; do
 # 		deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
 # 		deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
 		
