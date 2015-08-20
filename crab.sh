@@ -25,7 +25,7 @@ crabHelp() {
 }
 
 
-#Checks to see if ANDROID_HOME has been set
+# Checks to see if ANDROID_HOME has been set
 checkAndroidHome() {
 	$adb version >/dev/null 2>&1
 	error=$?
@@ -61,12 +61,14 @@ getDeviceInfo() {
 getRealDevices() {
 	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) 
 	numDevices=${#DEVICEIDS[@]}
+	getDeviceInfo
 }
 
 # Gets all emulators
 getEmulators() {
 	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) 
 	numDevices=${#DEVICEIDS[@]}
+	getDeviceInfo
 }
 
 # Helper function for outputting connected devices
@@ -130,11 +132,12 @@ crabSelect() {
 				done
 				echo "$msg"
 
-				# # Test to verify the correct device IDs are selected
-				# echo "IDs of the selected device(s):"
-				# for i in ${!SELECTEDIDS[@]}; do
-				# 	echo "${SELECTEDIDS[i]}"
-				# done
+			# 	# Test to verify the correct device IDs are selected
+			# 	echo "IDs of the selected device(s):"
+			# 	for i in ${!SELECTEDIDS[@]}; do
+			# 		echo "${SELECTEDIDS[i]}"
+			# 		echo "${SELECTEDINFO[i]}"
+			# 	done
 			}
 		fi
 		}
@@ -185,41 +188,28 @@ crabScreenshot() {
 # }
 
 # Inputs text on connected devices (modified part of superadb)
-# crabType() {
-
-# 	if [[  -z "$textInput"  ]]; then
-# 		{
-# 			echo ''
-# 			echo 'Text input stream is empty.'
-# 			echo ''
-# 			echo 'Enter text like this:'
-# 			echo '     crab -t "Enter text here"'
-# 			echo 'If quotes are not used, then only the first word will be typed.'
-# 		}
-# 	else
-# 		{
-# 			echo ''
-
-# 			for SERIAL in $(adb devices | grep -v List | cut -f 1); do
-# 				deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
-# 				deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
-
-# 				echo 'Entering text on' $deviceMake $deviceName'.'
-
-# 				# Replaces all spaces with %s
-# 				parsedText=${textInput// /%s}
-
-# 				#words=(`echo $textInput | tr ' '`)
-
-# 				#for i in words ; do
-# 					adb -s $SERIAL shell input text $parsedText
-# 				#done
-# 				echo ''
-
-# 			done
-# 		}
-# 	fi
-# }
+crabType() {
+	if [[  -z "$textInput"  ]]; then
+		{
+			echo ''
+			echo 'Text input stream is empty.'
+			echo ''
+			echo 'Enter text like this:'
+			echo '     crab -t "Enter text here"'
+			echo 'If quotes are not used, then only the first word will be typed.'
+		}
+	else
+		{
+			for i in ${!SELECTEDIDS[@]}; do
+				echo 'Entering text on' ${SELECTEDINFO[i]}
+				
+				# Replaces all spaces with %s
+				parsedText=${textInput// /%s}
+				adb -s ${SELECTEDIDS[i]} shell input text $parsedText
+			done
+		}
+	fi
+}
 
 checkAndroidHome
 
@@ -235,8 +225,9 @@ elif [[ $1 == ${SELECTIONS[1]} ]]; then # -e
 	}
 elif [[ $1 == ${SELECTIONS[2]} ]]; then # -a
 	{
+		getDeviceInfo
 		SELECTEDIDS=("${DEVICEIDS[@]}")
-
+		SELECTEDINFO=("${DEVICEINFO[@]}")
 		selection=false
 		flag=$2
 	}
@@ -244,6 +235,7 @@ elif [[ $1 == ${SELECTIONS[3]} ]]; then # -ad
 	{
 		getRealDevices
 		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all real devices
+		SELECTEDINFO=("${DEVICEINFO[@]}")
 		selection=false
 		flag=$2
 	}
@@ -251,6 +243,7 @@ elif [[ $1 == ${SELECTIONS[4]} ]]; then # -ae
 	{
 		getEmulators
 		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all emulators
+		SELECTEDINFO=("${DEVICEINFO[@]}")
 		selection=false
 		flag=$2
 	} 
@@ -261,27 +254,27 @@ else
 fi
 
 # Command selection
-if [[ $flag == ${COMMANDS[0]} ]]; then	#-l
+if [[ $flag == ${COMMANDS[0]} ]]; then	# -l
 	{
 		crabList
 	}
-elif [[ $flag == ${COMMANDS[1]} ]]; then #-s
+elif [[ $flag == ${COMMANDS[1]} ]]; then # -s
 	{
 		crabSelect
 		crabScreenshot
 	}
-elif [[ $flag == ${COMMANDS[2]} ]]; then #logs
+elif [[ $flag == ${COMMANDS[2]} ]]; then # logs
 	{
 		crabSelect
 		crabLog
 	}
-elif [[ $flag == ${COMMANDS[3]} ]]; then #-t
+elif [[ $flag == ${COMMANDS[3]} ]]; then # -t
 	{
 		crabSelect
 		textInput=$2
 		crabType
 	}
-elif [[ $1 == ${COMMANDS[4]} ]]; then #help
+elif [[ $1 == ${COMMANDS[4]} ]]; then # help
 	{
 		crabHelp
 	}
