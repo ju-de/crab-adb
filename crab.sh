@@ -11,7 +11,7 @@ SELECTEDINFO=()
 selection=true # Toggles device selection
 flag="" # Command flag
 SELECTIONS=("-d" "-e" "-a" "-ad" "-ae")
-COMMANDS=("-l" "-s" "logs" "-t" "help")
+COMMANDS=("-l" "-s" "-t" "help")
 
 # for i in ${COMMANDS[@]}; do
 # 	echo "$i"
@@ -21,7 +21,7 @@ textInput=""
 
 # Shows the user how to use the script
 crabHelp() {
-	echo "Crab Version 0.1 using $(adb help 2>&1)"
+	echo "Crab Version 0.1 using $($adb help 2>&1)"
 }
 
 
@@ -31,10 +31,11 @@ checkAndroidHome() {
 	error=$?
 
 	if [[ -z $ANDROID_HOME ]]; then
-		echo "ANDROID_HOME is not set!"
+		echo "ANDROID_HOME variable is not found in the PATH."
 		exit 1
 	elif [[ $error == "127" ]]; then
-		echo "ANDROID_HOME is not set correctly!"
+		echo "ANDROID_HOME is found at $ANDROID_HOME, but adb command is not found."
+		echo "Ensure the correct installation of Android SDK."
 		exit 1
 	fi
 }
@@ -149,43 +150,24 @@ crabSelect() {
 # 	numSelectDevices=${#SELECTEDIDS[@]}
 # 	for SERIAL in DEVICELIST;
 # 	do
-# 		adb -s SERIAL install "$1";
+# 		$adb -s SERIAL install "$1";
 # }
 
 # Takes a screenshot on connected devices (modified part of superadb)
 crabScreenshot() {
-	echo 'Taking screenshot on selected devices:'	
-	echo ''
+	echo 'Taking screenshot on selected devices:'
 
 	for i in ${!SELECTEDIDS[@]}; do
 		timestamp=$(date +"%I-%M-%S")
 		# Credit to the following site for screenshot copying directly to the current directory
 		# http://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html
-		adb -s ${SELECTEDIDS[i]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[i]}"-$timestamp-"screenshot.png"
+		$adb -s ${SELECTEDIDS[i]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[i]}"-$timestamp-"screenshot.png"
 		
 		# Tells the user which device and when the screenshot was taken on
 		echo 'Took screenshot on:' ${SELECTEDINFO[i]} ${SELECTEDIDS[i]} '@' $timestamp
 
 	done
 }
-
-# Grabs crash logs from connected devices (modified part of superadb)
-# crabLog() {
-# 	echo 'Taking logs from all devices:'	
-# 	echo ''
-
-# 	for i in ${!SELECTEDIDS[@]}; do
-# 		deviceMake=$(adb -s $SERIAL shell getprop | grep ro.product.manufacturer | cut -f2 -d ':' | tr -d '[]' | cut -c2- | tr -d '\r' | tr a-z A-Z)
-# 		deviceName=$(adb -s $SERIAL shell getprop | grep ro.product.model | cut -f2 -d ':' | tr -d '[]' | cut -c1- | tr -d '\r' )
-		
-
-# 		echo 'Logcat from' $deviceMake $deviceName '@' $timestamp
-# 		echo ''
-# 		adb -s $SERIAL logcat -d | grep AndroidR
-# 		echo ''
-
-# 	done
-# }
 
 # Inputs text on connected devices (modified part of superadb)
 crabType() {
@@ -205,7 +187,7 @@ crabType() {
 				
 				# Replaces all spaces with %s
 				parsedText=${textInput// /%s}
-				adb -s ${SELECTEDIDS[i]} shell input text $parsedText
+				$adb -s ${SELECTEDIDS[i]} shell input text $parsedText
 			done
 		}
 	fi
@@ -249,7 +231,8 @@ elif [[ $1 == ${SELECTIONS[4]} ]]; then # -ae
 	} 
 else
 	{
-		flag=$1
+		flag="$@"
+		# echo $flag
 	}
 fi
 
@@ -263,34 +246,26 @@ elif [[ $flag == ${COMMANDS[1]} ]]; then # -s
 		crabSelect
 		crabScreenshot
 	}
-elif [[ $flag == ${COMMANDS[2]} ]]; then # logs
-	{
-		crabSelect
-		crabLog
-	}
-elif [[ $flag == ${COMMANDS[3]} ]]; then # -t
+elif [[ $flag == ${COMMANDS[2]} ]]; then # -t
 	{
 		crabSelect
 		textInput=$2
 		crabType
 	}
-elif [[ $1 == ${COMMANDS[4]} ]]; then # help
+elif [[ $1 == ${COMMANDS[3]} ]]; then # help
 	{
 		crabHelp
 	}
 # If not a crab command, execute as adb script
 else 
 	{
-		adb $flag 2> /dev/null
+		crabSelect
+		for i in ${!SELECTEDIDS[@]}; do
+			$adb -s ${SELECTEDIDS[i]} $flag 2> /dev/null
+		done
+
 		if [[ $(echo $?) == 1 ]]; then
 			crabHelp
 		fi
-
-		# crabSelect
-		# for ID in $SELECTEDIDS; do
-		# 	# echo "adb -s" $ID $1
-		# 	adb=`adb -s $ID $1` #only works with the first command/flag
-		# 	echo $adb
-		# done
 	}
 fi
