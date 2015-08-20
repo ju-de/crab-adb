@@ -72,8 +72,8 @@ getEmulators() {
 	getDeviceInfo
 }
 
-# Helper function for outputting connected devices
-menu() {
+# Outputs connected devices
+crabList() {
     for i in ${!DEVICEIDS[@]}; do 
         printf "%3d%s) %s" $((i+1)) "${choices[i]:- }" 
         echo ${DEVICEINFO[i]} ${DEVICEIDS[i]}
@@ -81,18 +81,9 @@ menu() {
     [[ "$msg" ]] && echo $msg; :
 }
 
-# Outputs connected devices
-crabList() {
-	getDeviceInfo
-	menu
-}
-
 # Prompts user to select a device if multiple are connected
 crabSelect() {
 	if [[ $selection = true ]]; then {
-
-		getDeviceInfo
-
 		if [[ "$numDevices" == "1" ]]; then
 				echo 'Selected the only detected device:' ${DEVICEINFO[0]} ${DEVICEIDS[0]}
 				SELECTEDIDS=${DEVICEIDS[0]}
@@ -103,7 +94,7 @@ crabSelect() {
 				echo "Multiple devices connected. Please select from the list:"
 				echo "  0 ) All devices"
 				prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
-				while menu && read -rp "$prompt" num && [[ "$num" ]]; do
+				while crabList && read -rp "$prompt" num && [[ "$num" ]]; do
 					echo "  0 ) All devices"
 				    if [[ "$num" == "0" ]]; then 
 				    	while [[ $num < ${#DEVICEIDS[@]} ]]; do
@@ -133,12 +124,12 @@ crabSelect() {
 				done
 				echo "$msg"
 
-			# 	# Test to verify the correct device IDs are selected
-			# 	echo "IDs of the selected device(s):"
-			# 	for i in ${!SELECTEDIDS[@]}; do
-			# 		echo "${SELECTEDIDS[i]}"
-			# 		echo "${SELECTEDINFO[i]}"
-			# 	done
+				# # Test to verify the correct device IDs are selected
+				# echo "IDs of the selected device(s):"
+				# for i in ${!SELECTEDIDS[@]}; do
+				# 	echo "${SELECTEDIDS[i]}"
+				# 	echo "${SELECTEDINFO[i]}"
+				# done
 			}
 		fi
 		}
@@ -173,7 +164,6 @@ crabScreenshot() {
 crabType() {
 	if [[  -z "$textInput"  ]]; then
 		{
-			echo ''
 			echo 'Text input stream is empty.'
 			echo ''
 			echo 'Enter text like this:'
@@ -198,12 +188,12 @@ checkAndroidHome
 if [[ $1 == ${SELECTIONS[0]} ]]; then # -d
 	{
 		getRealDevices
-		flag=$2
+		flag=$(echo $@ | cut -d " " -f2-)
 	}
 elif [[ $1 == ${SELECTIONS[1]} ]]; then # -e
 	{
 		getEmulators
-		flag=$2
+		flag=$(echo $@ | cut -d " " -f2-)
 	}
 elif [[ $1 == ${SELECTIONS[2]} ]]; then # -a
 	{
@@ -211,7 +201,7 @@ elif [[ $1 == ${SELECTIONS[2]} ]]; then # -a
 		SELECTEDIDS=("${DEVICEIDS[@]}")
 		SELECTEDINFO=("${DEVICEINFO[@]}")
 		selection=false
-		flag=$2
+		flag=$(echo $@ | cut -d " " -f2-)
 	}
 elif [[ $1 == ${SELECTIONS[3]} ]]; then # -ad
 	{
@@ -219,7 +209,7 @@ elif [[ $1 == ${SELECTIONS[3]} ]]; then # -ad
 		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all real devices
 		SELECTEDINFO=("${DEVICEINFO[@]}")
 		selection=false
-		flag=$2
+		flag=$(echo $@ | cut -d " " -f2-)
 	}
 elif [[ $1 == ${SELECTIONS[4]} ]]; then # -ae
 	{
@@ -227,12 +217,12 @@ elif [[ $1 == ${SELECTIONS[4]} ]]; then # -ae
 		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all emulators
 		SELECTEDINFO=("${DEVICEINFO[@]}")
 		selection=false
-		flag=$2
+		flag=$(echo $@ | cut -d " " -f2-)
 	} 
 else
 	{
-		flag="$@"
-		# echo $flag
+		getDeviceInfo
+		flag=$1
 	}
 fi
 
@@ -248,8 +238,8 @@ elif [[ $flag == ${COMMANDS[1]} ]]; then # -s
 	}
 elif [[ $flag == ${COMMANDS[2]} ]]; then # -t
 	{
-		crabSelect
 		textInput=$2
+		crabSelect
 		crabType
 	}
 elif [[ $1 == ${COMMANDS[3]} ]]; then # help
@@ -261,7 +251,7 @@ else
 	{
 		crabSelect
 		for i in ${!SELECTEDIDS[@]}; do
-			$adb -s ${SELECTEDIDS[i]} $flag 2> /dev/null
+			$adb -s ${SELECTEDIDS[i]} $@ 2> /dev/null
 		done
 
 		if [[ $(echo $?) == 1 ]]; then
