@@ -10,14 +10,10 @@ SELECTEDINFO=()
 
 selection=true # Toggles device selection
 flag="" # Command flag
-SELECTIONS=("-d" "-e" "-a" "-ad" "-ae")
-COMMANDS=("-l" "-s" "-t" "help")
-
-# for i in ${COMMANDS[@]}; do
-# 	echo "$i"
-# done
-
+adbCommand="" # ADB command flag
 textInput=""
+FILTERS=("-d" "-e" "-a" "-ad" "-ae")
+COMMANDS=("-l" "-s" "-t" "i" "help")
 
 # Shows the user how to use the script
 crabHelp() {
@@ -33,16 +29,16 @@ checkAndroidHome() {
 	if [[ -z $ANDROID_HOME ]]; then
 		echo "ANDROID_HOME variable is not found in the PATH."
 		exit 1
-	elif [[ $error == "127" ]]; then
+	elif [[ $error == 127 ]]; then
 		echo "ANDROID_HOME is found at $ANDROID_HOME, but adb command is not found."
 		echo "Ensure the correct installation of Android SDK."
 		exit 1
 	fi
 }
 
-# Adds connected devices to a global array (modified part of superInstall)
+# Adds connected devices to a global array (modified code from superInstall)
 getDeviceInfo() {
-	if [ "$numDevices" == "0" ]; then 
+	if [[ $numDevices == 0 ]]; then 
 		echo 'No devices detected!' 
 		echo 'Troubleshooting tips if device is plugged in:'
 		echo ' - USB Debugging should be enabled on the device.'
@@ -83,68 +79,48 @@ crabList() {
 
 # Prompts user to select a device if multiple are connected
 crabSelect() {
-	if [[ $selection = true ]]; then {
-		if [[ "$numDevices" == "1" ]]; then
+	if [[ $selection == true ]]; then
+		if [[ $numDevices == 1 ]]; then
 				echo 'Selected the only detected device:' ${DEVICEINFO[0]} ${DEVICEIDS[0]}
 				SELECTEDIDS=${DEVICEIDS[0]}
+				SELECTEDINFO=${DEVICEINFO[0]}
 		else
-			{
-				# Asks user to select device, and then stores its ID as a global variable
-				# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
-				echo "Multiple devices connected. Please select from the list:"
+			# Modified code from http://serverfault.com/questions/144939/multi-select-menu-in-bash-script
+			echo "Multiple devices connected. Please select from the list:"
+			echo "  0 ) All devices"
+			prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
+			while crabList && read -rp "$prompt" num && [[ "$num" ]]; do
 				echo "  0 ) All devices"
-				prompt="Input an option to select (Input again to deselect; hit ENTER key when done): "
-				while crabList && read -rp "$prompt" num && [[ "$num" ]]; do
-					echo "  0 ) All devices"
-				    if [[ "$num" == "0" ]]; then 
-				    	while [[ $num < ${#DEVICEIDS[@]} ]]; do
-				    		choices[num]="+"
-				    		num=$((num+1))
-				    	done
-				    	msg="All devices were selected"
-				    else
-					    [[ "$num" != *[![:digit:]]* ]] &&
-					    (( num >= 0 && num <= ${#DEVICEIDS[@]} )) ||
-					    { msg="Invalid option: $num"; continue; }
-					    ((num--)); msg="${DEVICEINFO[num]} ${DEVICEIDS[num]} was ${choices[num]:+de}selected"
-					    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
-				    fi
-				done
+			    if [[ $num == 0 ]]; then 
+			    	while [[ $num < ${#DEVICEIDS[@]} ]]; do
+			    		choices[num]="+"
+			    		num=$((num+1))
+			    	done
+			    	msg="All devices were selected"
+			    else
+				    [[ "$num" != *[![:digit:]]* ]] &&
+				    (( num >= 0 && num <= ${#DEVICEIDS[@]} )) ||
+				    { msg="Invalid option: $num"; continue; }
+				    ((num--)); msg="${DEVICEINFO[num]} ${DEVICEIDS[num]} was ${choices[num]:+de}selected"
+				    [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
+			    fi
+			done
 
-				echo "You selected:"; msg=" nothing"
-				for i in ${!DEVICEIDS[@]}; do 
-				    [[ "${choices[i]}" ]] && { 
-					    echo ${DEVICEINFO[i]} ${DEVICEIDS[i]}; 
-					    msg=""; 
-
-						# Saves the ID(s) and info of the selected device(s) in global arrays
-					    SELECTEDIDS+=(${DEVICEIDS[i]});
-					    SELECTEDINFO+=("${DEVICEINFO[i]}");
-					}
-				done
-				echo "$msg"
-
-				# # Test to verify the correct device IDs are selected
-				# echo "IDs of the selected device(s):"
-				# for i in ${!SELECTEDIDS[@]}; do
-				# 	echo "${SELECTEDIDS[i]}"
-				# 	echo "${SELECTEDINFO[i]}"
-				# done
-			}
+			echo "You selected:"; msg=" nothing"
+			for i in ${!DEVICEIDS[@]}; do 
+			    [[ "${choices[i]}" ]] && { 
+				    echo ${DEVICEINFO[i]} ${DEVICEIDS[i]}; 
+				    msg=""; 
+				    SELECTEDIDS+=(${DEVICEIDS[i]});
+				    SELECTEDINFO+=("${DEVICEINFO[i]}");
+				}
+			done
+			echo "$msg"
 		fi
-		}
 	fi
 }
 
-# Installs apk on selected devices
-# crabInstall () {
-# 	numSelectDevices=${#SELECTEDIDS[@]}
-# 	for SERIAL in DEVICELIST;
-# 	do
-# 		$adb -s SERIAL install "$1";
-# }
-
-# Takes a screenshot on connected devices (modified part of superadb)
+# Takes a screenshot on connected devices (modified code from superadb)
 crabScreenshot() {
 	echo 'Taking screenshot on selected devices:'
 
@@ -153,109 +129,95 @@ crabScreenshot() {
 		# Credit to the following site for screenshot copying directly to the current directory
 		# http://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html
 		$adb -s ${SELECTEDIDS[i]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[i]}"-$timestamp-"screenshot.png"
-		
-		# Tells the user which device and when the screenshot was taken on
 		echo 'Took screenshot on:' ${SELECTEDINFO[i]} ${SELECTEDIDS[i]} '@' $timestamp
-
 	done
 }
 
-# Inputs text on connected devices (modified part of superadb)
+# Inputs text on connected devices (modified code from superadb)
 crabType() {
 	if [[  -z "$textInput"  ]]; then
-		{
 			echo 'Text input stream is empty.'
 			echo ''
 			echo 'Enter text like this:'
 			echo '     crab -t "Enter text here"'
 			echo 'If quotes are not used, then only the first word will be typed.'
-		}
+			exit 1
 	else
-		{
-			for i in ${!SELECTEDIDS[@]}; do
-				echo 'Entering text on' ${SELECTEDINFO[i]}
-				
-				# Replaces all spaces with %s
-				parsedText=${textInput// /%s}
-				$adb -s ${SELECTEDIDS[i]} shell input text $parsedText
-			done
-		}
+		for i in ${!SELECTEDIDS[@]}; do
+			echo 'Entering text on' ${SELECTEDINFO[i]}
+			parsedText=${textInput// /%s} # Replaces all spaces with %s
+			$adb -s ${SELECTEDIDS[i]} shell input text $parsedText
+		done
 	fi
 }
 
+# Main Procedure
+#================
+
 checkAndroidHome
 
-if [[ $1 == ${SELECTIONS[0]} ]]; then # -d
-	{
-		getRealDevices
-		flag=$(echo $@ | cut -d " " -f2-)
-	}
-elif [[ $1 == ${SELECTIONS[1]} ]]; then # -e
-	{
-		getEmulators
-		flag=$(echo $@ | cut -d " " -f2-)
-	}
-elif [[ $1 == ${SELECTIONS[2]} ]]; then # -a
-	{
-		getDeviceInfo
-		SELECTEDIDS=("${DEVICEIDS[@]}")
-		SELECTEDINFO=("${DEVICEINFO[@]}")
-		selection=false
-		flag=$(echo $@ | cut -d " " -f2-)
-	}
-elif [[ $1 == ${SELECTIONS[3]} ]]; then # -ad
-	{
-		getRealDevices
-		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all real devices
-		SELECTEDINFO=("${DEVICEINFO[@]}")
-		selection=false
-		flag=$(echo $@ | cut -d " " -f2-)
-	}
-elif [[ $1 == ${SELECTIONS[4]} ]]; then # -ae
-	{
-		getEmulators
-		SELECTEDIDS=("${DEVICEIDS[@]}") # Automatically selects all emulators
-		SELECTEDINFO=("${DEVICEINFO[@]}")
-		selection=false
-		flag=$(echo $@ | cut -d " " -f2-)
-	} 
+if [[ $1 == ${FILTERS[0]} ]]; then # -d
+	getRealDevices
+	flag=$2
+	textInput=$3
+	adbCommand=$(echo $@ | cut -d " " -f2-)
+elif [[ $1 == ${FILTERS[1]} ]]; then # -e
+	getEmulators
+	flag=$2
+	textInput=$3
+	adbCommand=$(echo $@ | cut -d " " -f2-)
+elif [[ $1 == ${FILTERS[2]} ]]; then # -a
+	getDeviceInfo
+	SELECTEDIDS=("${DEVICEIDS[@]}")
+	SELECTEDINFO=("${DEVICEINFO[@]}")
+	selection=false
+	flag=$2
+	textInput=$3
+	adbCommand=$(echo $@ | cut -d " " -f2-)
+elif [[ $1 == ${FILTERS[3]} ]]; then # -ad
+	getRealDevices
+	SELECTEDIDS=("${DEVICEIDS[@]}")
+	SELECTEDINFO=("${DEVICEINFO[@]}")
+	selection=false
+	flag=$2
+	textInput=$3
+	adbCommand=$(echo $@ | cut -d " " -f2-)
+elif [[ $1 == ${FILTERS[4]} ]]; then # -ae
+	getEmulators
+	SELECTEDIDS=("${DEVICEIDS[@]}")
+	SELECTEDINFO=("${DEVICEINFO[@]}")
+	selection=false
+	flag=$2
+	textInput=$3
+	adbCommand=$(echo $@ | cut -d " " -f2-)
 else
-	{
-		getDeviceInfo
-		flag=$1
-	}
+	getDeviceInfo
+	flag=$1
+	textInput=$2
+	adbCommand=$@
 fi
 
 # Command selection
 if [[ $flag == ${COMMANDS[0]} ]]; then	# -l
-	{
-		crabList
-	}
+	crabList
 elif [[ $flag == ${COMMANDS[1]} ]]; then # -s
-	{
-		crabSelect
-		crabScreenshot
-	}
+	crabSelect
+	crabScreenshot
 elif [[ $flag == ${COMMANDS[2]} ]]; then # -t
-	{
-		textInput=$2
-		crabSelect
-		crabType
-	}
-elif [[ $1 == ${COMMANDS[3]} ]]; then # help
-	{
-		crabHelp
-	}
-# If not a crab command, execute as adb script
-else 
-	{
-		crabSelect
-		for i in ${!SELECTEDIDS[@]}; do
-			$adb -s ${SELECTEDIDS[i]} $@ 2> /dev/null
-		done
+	crabSelect
+	crabType
+elif [[ $1 == ${COMMANDS[3]} ]]; then # -i
+	crabInstall
+elif [[ $1 == ${COMMANDS[4]} ]]; then # help
+	crabHelp
+else # If not a crab command, execute as adb script 
+	crabSelect
+	for i in ${!SELECTEDIDS[@]}; do
+		$adb -s ${SELECTEDIDS[i]} $adbCommand 2> /dev/null
+	done
 
-		if [[ $(echo $?) == 1 ]]; then
-			crabHelp
-		fi
-	}
+	if [[ $(echo $?) == 1 ]]; then
+		crabHelp
+		exit 1
+	fi
 fi
