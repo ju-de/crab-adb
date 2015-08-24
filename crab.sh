@@ -6,15 +6,22 @@ DEVICEIDS=($($adb devices 2> /dev/null | sed '1,1d' | sed '$d' | cut -f 1 | sort
 DEVICEINFO=()
 SELECTEDIDS=()
 SELECTEDINFO=()
+FILTERS=("-d" "-e" "-a" "-ad" "-ae")
+COMMANDS=("help" "l" "s" "t" "i")
 
 selection=true # Toggles device selection
-flag="" # Command flag
+flag=$2 # Command flag
 selectedCommand="" # Method to be executed on devices
-adbCommand="" # adb command flag
-runAdb=false # Toggles running adb commands
-textInput=""
-FILTERS=("-d" "-e" "-a" "-ad" "-ae")
-COMMANDS=("help" "l" "s" "t")
+adbCommand=$(echo $@ | cut -d " " -f2-) # ADB command flag
+runAdb=false
+textInput=$3
+apkFile=$3
+packageName=""
+
+# Shows the user how to use the script
+crabHelp() {
+	echo "Crab Version 0.1 using $($adb help 2>&1)"
+}
 
 # Checks to see if ANDROID_HOME has been set
 checkAndroidHome() {
@@ -31,9 +38,40 @@ checkAndroidHome() {
 	fi
 }
 
-# Shows the user how to use the script
-crabHelp() {
-	echo "Crab Version 0.1 using $($adb help 2>&1)"
+executeCrabCommand() {
+	for i in ${!SELECTEDIDS[@]}; do {
+		$selectedCommand
+	} &	
+	done; wait
+}
+
+# Adds connected devices to a global array (modified code from superInstall)
+getDeviceInfo() {
+	if [[ ${#DEVICEIDS[@]} == 0 ]]; then 
+		echo 'No devices detected!' 
+		echo 'Troubleshooting tips if device is plugged in:'
+		echo ' - USB Debugging should be enabled on the device.'
+		echo ' - Execute in terminal "adb kill-server"'
+		echo ' - Execute in terminal "adb start-server"'
+		exit 1
+	else
+		echo 'Number of devices found:' ${#DEVICEIDS[@]}
+		for i in ${!DEVICEIDS[@]}; do
+			DEVICEINFO+=("$(echo "$($adb -s ${DEVICEIDS[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')" | tr '\n' ' ')")
+		done
+	fi			
+}
+
+# Gets all physical devices
+getRealDevices() {
+	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) 
+	getDeviceInfo
+}
+
+# Gets all emulators
+getEmulators() {
+	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) 
+	getDeviceInfo
 }
 
 # Outputs connected devices
@@ -43,14 +81,6 @@ crabList() {
         echo ${DEVICEINFO[i]} ${DEVICEIDS[i]}
     done
     [[ "$msg" ]] && echo $msg; :
-}
-
-# Takes a screenshot on connected devices (modified code from superadb)
-crabScreenshot() {
-	timestamp=$(date +"%I-%M-%S")
-	# Credit to thttp://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html for screenshot copying directly to the current directory
-	$adb -s ${SELECTEDIDS[i]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[i]}"-$timestamp-"screenshot.png"
-	echo 'Took screenshot on:' ${SELECTEDINFO[i]} ${SELECTEDIDS[i]} '@' $timestamp
 }
 
 # Prompts user to select a device if multiple are connected
@@ -96,6 +126,14 @@ crabSelect() {
 	fi
 }
 
+# Takes a screenshot on selected devices (modified code from superadb)
+crabScreenshot() {
+	timestamp=$(date +"%I-%M-%S")
+	# Credit to thttp://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html for screenshot copying directly to the current directory
+	$adb -s ${SELECTEDIDS[i]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[i]}"-$timestamp-"screenshot.png"
+	echo 'Took screenshot on:' ${SELECTEDINFO[i]} ${SELECTEDIDS[i]} '@' $timestamp
+}
+
 # Inputs text on connected devices (modified code from superadb)
 crabType() {
 	if [[  -z "$textInput"  ]]; then
@@ -112,41 +150,21 @@ crabType() {
 	fi
 }
 
-# Executes crab command in the background
-executeCrabCommand() {
-	for i in ${!SELECTEDIDS[@]}; do {
-		$selectedCommand
-	} &	
-	done; wait
-}
-
-# Adds connected devices to a global array (modified code from superInstall)
-getDeviceInfo() {
-	if [[ ${#DEVICEIDS[@]} == 0 ]]; then 
-		echo 'No devices detected!' 
-		echo 'Troubleshooting tips if device is plugged in:'
-		echo ' - USB Debugging should be enabled on the device.'
-		echo ' - Execute in terminal "adb kill-server"'
-		echo ' - Execute in terminal "adb start-server"'
-		exit 1
+# Installs the specified .apk file to selected devices (modified code from superInstall)
+crabInstall() {
+ 	if ! test -e "$1" ; then 
+		echo "Please specify an existing .apk file."
+		exit 1;
+	elif [[ ${1: -3} == "apk" ]] ; then
+		packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
+		echo "Installing $packageName to" ${SELECTEDINFO[i]}		
+		$adb -s ${SELECTEDIDS[i]} install -r $1 >> /dev/null # -r for overinstall
+		$adb -s ${SELECTEDIDS[i]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
+		echo "Successfully installed $packageName to" ${SELECTEDINFO[i]}
 	else
-		echo 'Number of devices found:' ${#DEVICEIDS[@]}
-		for i in ${!DEVICEIDS[@]}; do
-			DEVICEINFO+=("$(echo "$($adb -s ${DEVICEIDS[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')" | tr '\n' ' ')")
-		done
-	fi			
-}
-
-# Gets all emulators
-getEmulators() {
-	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) 
-	getDeviceInfo
-}
-
-# Gets all physical devices
-getRealDevices() {
-	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) 
-	getDeviceInfo
+		echo "The application file is not an .apk file; Please specify a valid application file."
+		exit 1;
+	fi
 }
 
 # Main Procedure
@@ -156,42 +174,28 @@ checkAndroidHome
 
 if [[ $1 == ${FILTERS[0]} ]]; then # -d
 	getRealDevices
-	flag=$2
-	textInput=$3
-	adbCommand=$(echo $@ | cut -d " " -f2-)
 elif [[ $1 == ${FILTERS[1]} ]]; then # -e
 	getEmulators
-	flag=$2
-	textInput=$3
-	adbCommand=$(echo $@ | cut -d " " -f2-)
 elif [[ $1 == ${FILTERS[2]} ]]; then # -a
 	getDeviceInfo
 	SELECTEDIDS=("${DEVICEIDS[@]}")
 	SELECTEDINFO=("${DEVICEINFO[@]}")
 	selection=false
-	flag=$2
-	textInput=$3
-	adbCommand=$(echo $@ | cut -d " " -f2-)
 elif [[ $1 == ${FILTERS[3]} ]]; then # -ad
 	getRealDevices
 	SELECTEDIDS=("${DEVICEIDS[@]}")
 	SELECTEDINFO=("${DEVICEINFO[@]}")
 	selection=false
-	flag=$2
-	textInput=$3
-	adbCommand=$(echo $@ | cut -d " " -f2-)
 elif [[ $1 == ${FILTERS[4]} ]]; then # -ae
 	getEmulators
 	SELECTEDIDS=("${DEVICEIDS[@]}")
 	SELECTEDINFO=("${DEVICEINFO[@]}")
 	selection=false
-	flag=$2
-	textInput=$3
-	adbCommand=$(echo $@ | cut -d " " -f2-)
 else
 	getDeviceInfo
 	flag=$1
 	textInput=$2
+	apkFile=$2
 	adbCommand=$@
 fi
 
@@ -206,6 +210,8 @@ elif [[ $flag == ${COMMANDS[2]} ]]; then # s
 	selectedCommand="crabScreenshot"
 elif [[ $flag == ${COMMANDS[3]} ]]; then # t
 	selectedCommand="crabType"
+elif [[ $flag == ${COMMANDS[4]} ]]; then # i
+	selectedCommand="crabInstall $apkFile"
 else
 	runAdb=true
 fi
@@ -217,7 +223,6 @@ executeCrabCommand
 if [[ $runAdb == true ]]; then
 	for i in ${!SELECTEDIDS[@]}; do
 		$adb -s ${SELECTEDIDS[i]} $adbCommand 2> /dev/null
-
 		if [[ $(echo $?) == 1 ]]; then
 			crabHelp
 			exit 1
