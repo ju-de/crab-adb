@@ -133,6 +133,9 @@ crabSelect() {
 				}
 			done
 			echo "$msg"
+			if [[ ${#SELECTEDIDS[@]} < 1 ]]; then
+				exit 1
+			fi
 		fi
 	fi
 }
