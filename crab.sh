@@ -13,10 +13,17 @@ selection=true # Toggles device selection
 flag=$2 # Command flag
 selectedCommand="" # Method to be executed on devices
 adbCommand=$(echo $@ | cut -d " " -f2-) # ADB command flag
-runAdb=false
 textInput=$3
 apkFile=$3
 packageName=""
+
+runAdb() {
+	$adb -s ${SELECTEDIDS[i]} $adbCommand 2> /dev/null
+	if [[ $(echo $?) == 1 ]]; then
+		crabHelp
+		exit 1
+	fi
+}
 
 # Shows the user how to use the script
 crabHelp() {
@@ -27,7 +34,6 @@ crabHelp() {
 checkAndroidHome() {
 	$adb version >/dev/null 2>&1
 	error=$?
-
 	if [[ -z $ANDROID_HOME ]]; then
 		echo "ANDROID_HOME variable is not found in the PATH."
 		exit 1
@@ -38,11 +44,16 @@ checkAndroidHome() {
 	fi
 }
 
-executeCrabCommand() {
-	for i in ${!SELECTEDIDS[@]}; do {
-		$selectedCommand
-	} &	
-	done; wait
+# Executes command on selected devices
+executeCommand() {
+	if [[ ${#SELECTEDIDS[@]} > 1 ]]; then
+		for i in ${!SELECTEDIDS[@]}; do { # Execute command in the background
+			$selectedCommand
+		} &	
+		done; wait
+	else
+		$selectedCommand # Execute command normally
+	fi
 }
 
 # Adds connected devices to a global array (modified code from superInstall)
@@ -129,9 +140,10 @@ crabSelect() {
 # Takes a screenshot on selected devices (modified code from superadb)
 crabScreenshot() {
 	timestamp=$(date +"%I-%M-%S")
+	echo 'Taking screenshot on' ${SELECTEDINFO[i]}
 	# Credit to thttp://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html for screenshot copying directly to the current directory
 	$adb -s ${SELECTEDIDS[i]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[i]}"-$timestamp-"screenshot.png"
-	echo 'Took screenshot on:' ${SELECTEDINFO[i]} ${SELECTEDIDS[i]} '@' $timestamp
+	echo 'Successfully took screenshot on' ${SELECTEDINFO[i]} '@' $timestamp
 }
 
 # Inputs text on connected devices (modified code from superadb)
@@ -147,6 +159,7 @@ crabType() {
 		echo 'Entering text on' ${SELECTEDINFO[i]}
 		parsedText=${textInput// /%s} # Replaces all spaces with %s
 		$adb -s ${SELECTEDIDS[i]} shell input text $parsedText
+		echo 'Successfully entered text on' ${SELECTEDINFO[i]}
 	fi
 }
 
@@ -154,16 +167,16 @@ crabType() {
 crabInstall() {
  	if ! test -e "$1" ; then 
 		echo "Please specify an existing .apk file."
-		exit 1;
+		exit 1
 	elif [[ ${1: -3} == "apk" ]] ; then
 		packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
 		echo "Installing $packageName to" ${SELECTEDINFO[i]}		
 		$adb -s ${SELECTEDIDS[i]} install -r $1 >> /dev/null # -r for overinstall
-		$adb -s ${SELECTEDIDS[i]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
+		# $adb -s ${SELECTEDIDS[i]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
 		echo "Successfully installed $packageName to" ${SELECTEDINFO[i]}
 	else
 		echo "The application file is not an .apk file; Please specify a valid application file."
-		exit 1;
+		exit 1
 	fi
 }
 
@@ -213,19 +226,8 @@ elif [[ $flag == ${COMMANDS[3]} ]]; then # t
 elif [[ $flag == ${COMMANDS[4]} ]]; then # i
 	selectedCommand="crabInstall $apkFile"
 else
-	runAdb=true
+	selectedCommand="runAdb" # If not a crab command, execute as adb command 
 fi
 
 crabSelect
-executeCrabCommand
-
-# If not a crab command, execute as adb command 
-if [[ $runAdb == true ]]; then
-	for i in ${!SELECTEDIDS[@]}; do
-		$adb -s ${SELECTEDIDS[i]} $adbCommand 2> /dev/null
-		if [[ $(echo $?) == 1 ]]; then
-			crabHelp
-			exit 1
-		fi
-	done
-fi
+executeCommand
