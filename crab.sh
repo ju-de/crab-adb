@@ -7,7 +7,7 @@ DEVICEINFO=()
 SELECTEDIDS=()
 SELECTEDINFO=()
 FILTERS=("-d" "-e" "-a" "-ad" "-ae")
-COMMANDS=("help" "l" "s" "t" "i")
+COMMANDS=("help" "l" "s" "t" "i" "u")
 
 selection=true # Toggles device selection
 flag=$2 # Command flag
@@ -15,7 +15,7 @@ selectedCommand="" # Method to be executed on devices
 adbCommand=$(echo $@ | cut -d " " -f2-) # ADB command flag
 textInput=$3
 apkFile=$3
-# packageName=""
+packageName=""
 
 runAdb() {
 	$adb -s ${SELECTEDIDS[i]} $adbCommand 2> /dev/null
@@ -167,15 +167,27 @@ crabType() {
 
 # Installs the specified .apk file to selected devices (modified code from superInstall)
 crabInstall() {
- 	if ! test -e "$1" ; then 
+ 	echo "Installing $1 to" ${SELECTEDINFO[$2]}
+	status=`$adb -s ${SELECTEDIDS[$2]} install -r $1 | cut -f 1 | tr '\n' ' '` # -r for overinstall
+	# $adb -s ${SELECTEDIDS[i]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
+	echo " Installation of $1 to ${SELECTEDINFO[$2]}: $status" 
+}
+
+# Uninstalled the specified .apk file from selected devices (modified code from superInstall)
+crabUninstall() {
+	packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
+	echo "Uninstalling $packageName from ${SELECTEDINFO[$2]}if it exists:"
+	status=`$adb -s ${SELECTEDIDS[$2]} uninstall $packageName | cut -f 1 -d " "`
+	echo "Uninstallation of $packageName from ${SELECTEDINFO[$2]}: $status"
+}
+
+# Checks if a file is a valid .apk file (modified code from superInstall)
+setApkFile() {
+	if ! test -e "$1"; then 
 		echo "Please specify an existing .apk file."
 		exit 1
-	elif [[ ${1: -3} == "apk" ]] ; then
-		# packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
-		echo "Installing $1 to" ${SELECTEDINFO[$2]}
-		status=`$adb -s ${SELECTEDIDS[$2]} install -r $1 | cut -f 1 | tr '\n' ' '` # -r for overinstall
-		# $adb -s ${SELECTEDIDS[i]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
-		echo " Installation of $1 to ${SELECTEDINFO[$2]}: $status" 
+	elif [[ ${1: -3} == "apk" ]]; then
+		:
 	else
 		echo "The application file is not an .apk file; Please specify a valid application file."
 		exit 1
@@ -187,7 +199,7 @@ crabInstall() {
 
 checkAndroidHome
 
-if [[ $1 == ${COMMANDS[0]} ]]; then # help
+if [[ $1 == ${COMMANDS[0]} || $1 == "" ]]; then # help
 	crabHelp
 	exit 0
 elif [[ $1 == ${FILTERS[0]} ]]; then # -d
@@ -218,7 +230,7 @@ else
 fi
 
 # Command selection
-if [[ $flag == ${COMMANDS[0]} ]]; then # help
+if [[ $flag == ${COMMANDS[0]} || $flag == "" ]]; then # help
 	crabHelp
 	exit 0
 elif [[ $flag == ${COMMANDS[1]} ]]; then # l
@@ -229,7 +241,11 @@ elif [[ $flag == ${COMMANDS[2]} ]]; then # s
 elif [[ $flag == ${COMMANDS[3]} ]]; then # t
 	selectedCommand="crabType"
 elif [[ $flag == ${COMMANDS[4]} ]]; then # i
+	setApkFile $apkFile
 	selectedCommand="crabInstall $apkFile"
+elif [[ $flag == ${COMMANDS[5]} ]]; then # u
+	setApkFile $apkFile
+	selectedCommand="crabUninstall $apkFile"
 else
 	selectedCommand="runAdb" # If not a crab command, execute as adb command 
 fi
