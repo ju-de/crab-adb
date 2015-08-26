@@ -173,9 +173,9 @@ crabInstall() {
 	elif [[ ${1: -3} == "apk" ]] ; then
 		# packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
 		echo "Installing $1 to" ${SELECTEDINFO[$2]}
-		$adb -s ${SELECTEDIDS[$2]} install -r $1 >> /dev/null # -r for overinstall
+		status=`$adb -s ${SELECTEDIDS[$2]} install -r $1 | cut -f 1 | tr '\n' ' '` # -r for overinstall
 		# $adb -s ${SELECTEDIDS[i]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
-		echo "Successfully installed $1 to" ${SELECTEDINFO[$2]}
+		echo " Installation of $1 to ${SELECTEDINFO[$2]}: $status" 
 	else
 		echo "The application file is not an .apk file; Please specify a valid application file."
 		exit 1
@@ -187,7 +187,10 @@ crabInstall() {
 
 checkAndroidHome
 
-if [[ $1 == ${FILTERS[0]} ]]; then # -d
+if [[ $1 == ${COMMANDS[0]} ]]; then # help
+	crabHelp
+	exit 0
+elif [[ $1 == ${FILTERS[0]} ]]; then # -d
 	getRealDevices
 elif [[ $1 == ${FILTERS[1]} ]]; then # -e
 	getEmulators
