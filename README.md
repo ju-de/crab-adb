@@ -8,31 +8,31 @@ ___
 
 **Selection Filters**
 
--d      - physical devices
+-d &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - physical devices
 
--e      - emulators
+-e &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - emulators
 
--a      - selects all
+-a &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - selects all
 
--ad     - automatically selects all physical devices
+-ad &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- automatically selects all physical devices
 
--ae     - automatically selects all emulators
+-ae &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- automatically selects all emulators
 
 **Commands Available**
 
-crab help             - shows usage of the script      
+adb help &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - shows usage of the script
 
-crab l                - lists connected devices
+adb l &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - lists connected devices
 
-crab s                - takes a screenshot on selected devices
+adb s &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - takes a screenshot on selected devices
 
-crab t \<text input>   - types on selected devices
+adb t \<text input> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - types on selected devices
 
-crab i \<file>         - pushes this package file to selected devices and installs it (overinstall)
+adb i \<file> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - pushes this package file to selected devices and installs it (overinstall)
 
-crab u \<file>         - removes this app package from selected devices
+adb u \<file> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - removes this app package from selected devices
 
-crab \<adb command>    - executes command using original adb
+adb \<adb command>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- executes command using original adb
 
 **Install**
 
@@ -47,7 +47,7 @@ crab \<adb command>    - executes command using original adb
 5. Set up an alias for the script to redirect adb by typing the following:
 >alias adb=./crab.sh
 
-The alias can be removed anytime by typing the following:
+Note: The alias can be removed anytime by typing the following:
 >unalias adb
 
 **Usage**
