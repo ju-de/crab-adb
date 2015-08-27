@@ -27,7 +27,24 @@ runAdb() {
 
 # Shows the user how to use the script
 crabHelp() {
-	echo "Crab Version 0.1 using $($adb help 2>&1)"
+	echo "Crab Version 1.0 using $($adb help 2>&1)"
+	echo ''
+	echo "***Custom Crab Features***
+Selection Filters:
+  -d 		      - physical devices
+  -e 		      - emulators
+  -a 		      - selects all
+  -ad 		      - automatically selects all physical devices
+  -ae 		      - automatically selects all emulators
+
+Commands:
+  adb help             - shows usage of the script      
+  adb l                - lists connected devices
+  adb s                - takes a screenshot on selected devices
+  adb t <text input>   - types on selected devices
+  adb i <file>         - pushes this package file to selected devices and installs it (overinstall)
+  adb u <file>         - removes this app package from selected devices
+  adb <adb command>    - executes command using original adb"
 }
 
 # Checks to see if ANDROID_HOME has been set
@@ -47,16 +64,16 @@ checkAndroidHome() {
 # Executes command on selected devices
 executeCommand() {
 	if [[ ${#SELECTEDIDS[@]} > 1 ]]; then
-		for i in ${!SELECTEDIDS[@]}; do { # Execute command in the background
+		for i in ${!SELECTEDIDS[@]}; do { # Executes command in the background
 			$selectedCommand $i # i is passed in as an argument
 		} &	
 		done; wait
 	else
-		$selectedCommand # Execute command normally
+		$selectedCommand # Executes command normally
 	fi
 }
 
-# Adds connected devices to a global array (modified code from superInstall)
+# Adds device info to a global array (modified code from superInstall)
 getDeviceInfo() {
 	if [[ ${#DEVICEIDS[@]} == 0 ]]; then 
 		echo 'No devices detected!' 
@@ -143,18 +160,18 @@ crabSelect() {
 crabScreenshot() {
 	timestamp=$(date +"%I-%M-%S")
 	echo 'Taking screenshot on' ${SELECTEDINFO[$1]}
-	# Credit to thttp://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html for screenshot copying directly to the current directory
+	# Credit to http://www.growingwiththeweb.com/2014/01/handy-adb-commands-for-android.html for screenshot copying directly to the current directory
 	$adb -s ${SELECTEDIDS[$1]} shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' >> "${SELECTEDINFO[$1]}"-$timestamp-"screenshot.png"
 	echo 'Successfully took screenshot on' ${SELECTEDINFO[$1]} '@' $timestamp
 }
 
-# Inputs text on connected devices (modified code from superadb)
+# Inputs text on selected devices (modified code from superadb)
 crabType() {
 	if [[  -z "$textInput"  ]]; then
 			echo 'Text input stream is empty.'
 			echo ''
 			echo 'Enter text like this:'
-			echo '     crab -t "Enter text here"'
+			echo '     adb t "Enter text here"'
 			echo 'If quotes are not used, then only the first word will be typed.'
 			exit 1
 	else
@@ -169,7 +186,7 @@ crabType() {
 crabInstall() {
  	echo "Installing $1 to" ${SELECTEDINFO[$2]}
 	status=`$adb -s ${SELECTEDIDS[$2]} install -r $1 | cut -f 1 | tr '\n' ' '` # -r for overinstall
-	# $adb -s ${SELECTEDIDS[i]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
+	# $adb -s ${SELECTEDIDS[$2]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
 	echo " Installation of $1 to ${SELECTEDINFO[$2]}: $status" 
 }
 
