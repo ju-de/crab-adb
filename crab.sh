@@ -7,7 +7,7 @@ DEVICEINFO=()
 SELECTEDIDS=()
 SELECTEDINFO=()
 FILTERS=("-d" "-e" "-a" "-ad" "-ae")
-COMMANDS=("help" "l" "s" "t" "i" "u")
+COMMANDS=("help" "l" "s" "t" "i" "u" "c")
 
 selection=true # Toggles device selection
 flag=$2 # Command flag
@@ -17,12 +17,27 @@ textInput=$3
 apkFile=$3
 packageName=""
 
-runAdb() {
-	$adb -s ${SELECTEDIDS[i]} $adbCommand 2> /dev/null
-	if [[ $(echo $?) == 1 ]]; then
-		crabHelp
+# Checks to see if ANDROID_HOME has been set
+checkAndroidHome() {
+	$adb version >/dev/null 2>&1
+	error=$?
+	if [[ -z $ANDROID_HOME ]]; then
+		echo "ANDROID_HOME variable is not found in the PATH."
+		exit 1
+	elif [[ $error == 127 ]]; then
+		echo "ANDROID_HOME is found at $ANDROID_HOME, but adb command is not found."
+		echo "Ensure the correct installation of Android SDK."
 		exit 1
 	fi
+}
+
+# Force stops the specified application and clears data
+crabClearData() {
+	# packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
+	echo "Clearing data for $packageName on" ${SELECTEDINFO[$2]}		
+	status=`$adb -s ${SELECTEDIDS[$2]} shell pm clear $packageName`
+	echo "Clearing data for $packageName on ${SELECTEDINFO[$2]}: $status"
+	$adb -s ${SELECTEDIDS[$2]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null 
 }
 
 # Shows the user how to use the script
@@ -47,61 +62,6 @@ Commands:
   adb <adb command>    - executes command using original adb"
 }
 
-# Checks to see if ANDROID_HOME has been set
-checkAndroidHome() {
-	$adb version >/dev/null 2>&1
-	error=$?
-	if [[ -z $ANDROID_HOME ]]; then
-		echo "ANDROID_HOME variable is not found in the PATH."
-		exit 1
-	elif [[ $error == 127 ]]; then
-		echo "ANDROID_HOME is found at $ANDROID_HOME, but adb command is not found."
-		echo "Ensure the correct installation of Android SDK."
-		exit 1
-	fi
-}
-
-# Executes command on selected devices
-executeCommand() {
-	if [[ ${#SELECTEDIDS[@]} > 1 ]]; then
-		for i in ${!SELECTEDIDS[@]}; do { # Executes command in the background
-			$selectedCommand $i # i is passed in as an argument
-		} &	
-		done; wait
-	else
-		$selectedCommand # Executes command normally
-	fi
-}
-
-# Adds device info to a global array (modified code from superInstall)
-getDeviceInfo() {
-	if [[ ${#DEVICEIDS[@]} == 0 ]]; then 
-		echo 'No devices detected!' 
-		echo 'Troubleshooting tips if device is plugged in:'
-		echo ' - USB Debugging should be enabled on the device.'
-		echo ' - Execute in terminal "adb kill-server"'
-		echo ' - Execute in terminal "adb start-server"'
-		exit 1
-	else
-		echo 'Number of devices found:' ${#DEVICEIDS[@]}
-		for i in ${!DEVICEIDS[@]}; do
-			DEVICEINFO+=("$(echo "$($adb -s ${DEVICEIDS[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')" | tr '\n' ' ')")
-		done
-	fi			
-}
-
-# Gets all physical devices
-getRealDevices() {
-	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) 
-	getDeviceInfo
-}
-
-# Gets all emulators
-getEmulators() {
-	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) 
-	getDeviceInfo
-}
-
 # Outputs connected devices
 crabList() {
     for i in ${!DEVICEIDS[@]}; do
@@ -109,6 +69,14 @@ crabList() {
         echo ${DEVICEINFO[i]} ${DEVICEIDS[i]}
     done
     [[ "$msg" ]] && echo $msg; :
+}
+
+# Installs the specified .apk file to selected devices (modified code from superInstall)
+crabInstall() {
+ 	echo "Installing $1 to" ${SELECTEDINFO[$2]}
+	status=`$adb -s ${SELECTEDIDS[$2]} install -r $1 | cut -f 1 | tr '\n' ' '` # -r for overinstall
+	$adb -s ${SELECTEDIDS[$2]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
+	echo " Installation of $1 to ${SELECTEDINFO[$2]}: $status" 
 }
 
 # Prompts user to select a device if multiple are connected
@@ -182,20 +150,61 @@ crabType() {
 	fi
 }
 
-# Installs the specified .apk file to selected devices (modified code from superInstall)
-crabInstall() {
- 	echo "Installing $1 to" ${SELECTEDINFO[$2]}
-	status=`$adb -s ${SELECTEDIDS[$2]} install -r $1 | cut -f 1 | tr '\n' ' '` # -r for overinstall
-	# $adb -s ${SELECTEDIDS[$2]} shell am start -a android.intent.action.MAIN -n $packageName/$(aapt dump badging $1 | grep launchable | cut -d "'" -f 2) >> /dev/null
-	echo " Installation of $1 to ${SELECTEDINFO[$2]}: $status" 
-}
-
 # Uninstalled the specified .apk file from selected devices (modified code from superInstall)
 crabUninstall() {
-	packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
+	# packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
 	echo "Uninstalling $packageName from ${SELECTEDINFO[$2]}if it exists:"
 	status=`$adb -s ${SELECTEDIDS[$2]} uninstall $packageName | cut -f 1 -d " "`
 	echo "Uninstallation of $packageName from ${SELECTEDINFO[$2]}: $status"
+}
+
+# Executes command on selected devices
+executeCommand() {
+	if [[ ${#SELECTEDIDS[@]} > 1 ]]; then
+		for i in ${!SELECTEDIDS[@]}; do { # Executes command in the background
+			$selectedCommand $i # i is passed in as an argument
+		} &	
+		done; wait
+	else
+		$selectedCommand # Executes command normally
+	fi
+}
+
+# Adds device info to a global array (modified code from superInstall)
+getDeviceInfo() {
+	if [[ ${#DEVICEIDS[@]} == 0 ]]; then 
+		echo 'No devices detected!' 
+		echo 'Troubleshooting tips if device is plugged in:'
+		echo ' - USB Debugging should be enabled on the device.'
+		echo ' - Execute in terminal "adb kill-server"'
+		echo ' - Execute in terminal "adb start-server"'
+		exit 1
+	else
+		echo 'Number of devices found:' ${#DEVICEIDS[@]}
+		for i in ${!DEVICEIDS[@]}; do
+			DEVICEINFO+=("$(echo "$($adb -s ${DEVICEIDS[i]} shell "getprop ro.product.manufacturer && getprop ro.product.model && getprop ro.build.version.release" | tr -d '\r')" | tr '\n' ' ')")
+		done
+	fi			
+}
+
+# Gets all emulators
+getEmulators() {
+	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep '^emu')) 
+	getDeviceInfo
+}
+
+# Gets all physical devices
+getRealDevices() {
+	DEVICEIDS=($($adb devices | sed '1,1d' | sed '$d' | cut -f 1 | sort | grep -v '^emu')) 
+	getDeviceInfo
+}
+
+runAdb() {
+	$adb -s ${SELECTEDIDS[i]} $adbCommand 2> /dev/null
+	if [[ $(echo $?) == 1 ]]; then
+		crabHelp
+		exit 1
+	fi
 }
 
 # Checks if a file is a valid .apk file (modified code from superInstall)
@@ -204,7 +213,8 @@ setApkFile() {
 		echo "Please specify an existing .apk file."
 		exit 1
 	elif [[ ${1: -3} == "apk" ]]; then
-		:
+		packageName=`aapt dump badging $1 | grep package: | cut -d "'" -f 2`
+		# :
 	else
 		echo "The application file is not an .apk file; Please specify a valid application file."
 		exit 1
@@ -263,6 +273,9 @@ elif [[ $flag == ${COMMANDS[4]} ]]; then # i
 elif [[ $flag == ${COMMANDS[5]} ]]; then # u
 	setApkFile $apkFile
 	selectedCommand="crabUninstall $apkFile"
+elif [[ $flag == ${COMMANDS[6]} ]]; then # c
+	setApkFile $apkFile
+	selectedCommand="crabClearData $apkFile"
 else
 	selectedCommand="runAdb" # If not a crab command, execute as adb command 
 fi
