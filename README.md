@@ -1,5 +1,6 @@
 # crab
-Adds new commands to Android Debug Bridge and extends its functionality across multiple devices and emulators
+Adds new functionality to Android Debug Bridge and extend its usability
+to work with multiple devices or emulators at a time.
 
 Requires [Android Debug Bridge](http://developer.android.com/tools/help/adb.html)
 
