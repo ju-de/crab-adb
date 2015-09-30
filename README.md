@@ -1,4 +1,4 @@
-# crab
+# crab (an ADB wrapper)
 Adds new functionality to Android Debug Bridge and extend its usability
 to work with multiple devices or emulators at a time.
 
